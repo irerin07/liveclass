@@ -108,22 +108,28 @@
 - [ ] T4.2 `LoggingEmailSender` 실패 주입: 수신자 패턴 규칙 (`fail-2-times-*` → 2회차까지 Transient, `fail-permanent-*` → Permanent). 테스트/데모 겸용
 - [ ] T4.3 `Clock` 빈 등록 및 시간 사용 지점 전부 주입으로 전환 (엔티티 전이 메서드 포함)
 
+### 수신 가능 검증 (spec §7.7)
+
+- [ ] T4.4 `RecipientStatusPort` 포트 인터페이스 + 패턴 스텁 구현 (`withdrawn-*` = 수신 불가)
+- [ ] T4.5 워커 발송 직전 검증: 수신 불가 → 발송 없이 재시도 없이 FAILED + 실패 코드 `RECIPIENT_GONE` (attempt 이력 1건 기록)
+
 ### 재시도
 
-- [ ] T4.4 `BackoffPolicy` 순수 함수: 지수 백오프 (기본 30s → 2m → 10m), `notification.retry.*` 설정 바인딩 + 간격 단위 테스트
-- [ ] T4.5 `ResultRecorder` 확장: 성공 → SENT / Transient & attempt < max → `scheduleRetry` / Transient & attempt ≥ max 또는 Permanent → FAILED + `last_error`(1000자 절단)
-- [ ] T4.6 attempt 기록: 모든 시도를 `notification_attempts`에 TX2와 동일 트랜잭션으로 기록
-- [ ] T4.7 `GET /api/notifications/{id}` 응답에 시도 이력 포함 (FR-2 완성)
+- [ ] T4.6 `BackoffPolicy` 순수 함수: 지수 백오프 (기본 30s → 2m → 10m), `notification.retry.*` 설정 바인딩 + 간격 단위 테스트
+- [ ] T4.7 `ResultRecorder` 확장: 성공 → SENT / Transient & attempt < max → `scheduleRetry` / Transient & attempt ≥ max 또는 Permanent → FAILED + `last_error`(1000자 절단)
+- [ ] T4.8 attempt 기록: 모든 시도를 `notification_attempts`에 TX2와 동일 트랜잭션으로 기록
+- [ ] T4.9 `GET /api/notifications/{id}` 응답에 시도 이력 포함 (FR-2 완성)
 
 ### 검증
 
-- [ ] T4.8 테스트 프로파일 백오프 축소 (100ms 단위)
-- [ ] T4.9 통합 테스트: 2회 실패 → 3회차 성공 → SENT + attempts 3건(실패 2, 성공 1)
-- [ ] T4.10 통합 테스트: max 연속 Transient 실패 → FAILED + last_error + 전체 이력
-- [ ] T4.11 통합 테스트: Permanent 실패 → 재시도 없이 즉시 FAILED
-- [ ] T4.12 단위 테스트: `next_attempt_at` 이 백오프 정책대로 설정
-- [ ] T4.13 테스트: 설정 변경(횟수/간격)이 동작에 반영됨
-- [ ] T4.14 ⛳ 전체 테스트 통과 + **커밋** (`feat: 발송 실패 재시도 및 최종 실패 처리`)
+- [ ] T4.10 테스트 프로파일 백오프 축소 (100ms 단위)
+- [ ] T4.11 통합 테스트: 2회 실패 → 3회차 성공 → SENT + attempts 3건(실패 2, 성공 1)
+- [ ] T4.12 통합 테스트: max 연속 Transient 실패 → FAILED + last_error + 전체 이력
+- [ ] T4.13 통합 테스트: Permanent 실패 → 재시도 없이 즉시 FAILED
+- [ ] T4.14 통합 테스트: 수신 불가 수신자(`withdrawn-*`) → 발송기 미호출, 재시도 없이 FAILED + `RECIPIENT_GONE`
+- [ ] T4.15 단위 테스트: `next_attempt_at` 이 백오프 정책대로 설정
+- [ ] T4.16 테스트: 설정 변경(횟수/간격)이 동작에 반영됨
+- [ ] T4.17 ⛳ 전체 테스트 통과 + **커밋** (`feat: 발송 실패 재시도·최종 실패·수신 가능 검증`)
 
 ---
 
@@ -183,7 +189,7 @@
 - [ ] T8.2 실행 방법 (docker compose 단일 명령 + 로컬 실행 대안)
 - [ ] T8.3 API 목록 및 예시 (엔드포인트별 curl + 응답 샘플)
 - [ ] T8.4 데이터 모델 설명 (ERD — mermaid, 인덱스 설계 이유 포함)
-- [ ] T8.5 요구사항 해석 및 가정 (spec §7 이관: 동일 이벤트 정의, 채널별 차이, 실패 분류, at-least-once, 수동 재시도 정책, 보관 정책)
+- [ ] T8.5 요구사항 해석 및 가정 (spec §7 이관: 동일 이벤트 정의, 채널별 차이, 실패 분류, at-least-once, 수동 재시도 정책, 보관 정책, 수신 가능 여부 확인 책임 §7.7)
 - [ ] T8.6 설계 결정과 이유 (아웃박스 선택, RETRY_WAIT 미도입, 200 vs 409, 트랜잭션 3단 분리, [결정 기록] 반영)
 - [ ] T8.7 테스트 실행 방법 (Testcontainers 요구사항 — Docker 필요 명시)
 - [ ] T8.8 미구현 / 제약사항 (Phase 7 미착수분의 정책 서술 포함)
@@ -192,7 +198,7 @@
 ### C 전용 추가 제출물
 
 - [ ] T8.10 비동기 처리 구조 및 재시도 정책 문서: 아키텍처 다이어그램(mermaid), 상태 머신 전이 표, 트랜잭션 경계, 백오프 정책, 브로커 전환 시나리오 (spec §5.4 표)
-- [ ] T8.11 요구사항 해석 및 개선 의견: at-least-once 한계와 개선 방향(수신측 멱등성, dedupe), 요구사항 자체에 대한 제안
+- [ ] T8.11 요구사항 해석 및 개선 의견: at-least-once 한계와 개선 방향(수신측 멱등성, dedupe), 탈퇴 이벤트 연동에 의한 선제 취소(CANCELED 상태 도입)·탈퇴자 알림 데이터 파기 정책(§7.6·§7.7), 요구사항 자체에 대한 제안
 
 ### 데모 + 최종 검증
 
