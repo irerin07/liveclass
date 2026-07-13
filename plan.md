@@ -169,12 +169,13 @@
 
 1. 실패 모델: `TransientSendException` (재시도 대상) / `PermanentSendException` (즉시 FAILED) — spec §7.3
 2. `LoggingEmailSender`에 실패 주입 규칙 추가: 수신자 ID 패턴 기반 (예: `fail-2-times-*`는 2회차까지 Transient 실패, `fail-permanent-*`는 Permanent 실패). 규칙은 테스트/데모 겸용
-3. 결과 기록 로직 확장 (TX2):
+3. 수신 가능 검증 포트 `RecipientStatusPort`: **상태 반환 계약** (ACTIVE / WITHDRAWN / NOT_FOUND) + 패턴 스텁(`withdrawn-*` → WITHDRAWN, `ghost-*` → NOT_FOUND). 워커가 **발송 직전** 호출하고 판단은 워커 정책이 수행 — WITHDRAWN → FAILED + `RECIPIENT_GONE`(정상 억제) / NOT_FOUND → FAILED + `RECIPIENT_NOT_FOUND`(데이터 이상, 경고 로그). 둘 다 재시도 없음 (spec §7.7)
+4. 결과 기록 로직 확장 (TX2):
    - 성공 → SENT + attempt 기록
    - Transient 실패 & attempt < max → `scheduleRetry()`: PENDING + `next_attempt_at = now + backoff(attemptCount)` + attempt 기록
    - Transient 실패 & attempt ≥ max, 또는 Permanent 실패 → FAILED + `last_error` + attempt 기록
-4. 백오프 함수: 지수 (기본 30s → 2m → 10m), `notification.retry.*` 설정 바인딩
-5. `GET /api/notifications/{id}` 응답에 시도 이력(attempts) 포함 (FR-2 완성)
+5. 백오프 함수: 지수 (기본 30s → 2m → 10m), `notification.retry.*` 설정 바인딩
+6. `GET /api/notifications/{id}` 응답에 시도 이력(attempts) 포함 (FR-2 완성)
 
 ### 기술 메모
 
@@ -189,6 +190,8 @@
 - [ ] 2회 실패 → 3회차 성공: 최종 SENT, attempts 3건 (성공 1, 실패 2) (FR-5 AC)
 - [ ] max 연속 Transient 실패 → FAILED + last_error + 전체 이력 (FR-5 AC)
 - [ ] Permanent 실패 → 재시도 없이 즉시 FAILED (spec §7.3)
+- [ ] 탈퇴 수신자(`withdrawn-*`) → 발송기 미호출, 재시도 없이 FAILED + `RECIPIENT_GONE` (spec §7.7)
+- [ ] 미존재 수신자(`ghost-*`) → 발송기 미호출, 재시도 없이 FAILED + `RECIPIENT_NOT_FOUND` + 경고 로그 (spec §7.7)
 - [ ] `next_attempt_at`이 백오프 정책대로 설정됨 (단위 테스트)
 - [ ] 설정 변경으로 재시도 횟수/간격 조정 가능 (FR-5 AC)
 
