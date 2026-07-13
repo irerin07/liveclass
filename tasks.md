@@ -110,8 +110,8 @@
 
 ### 수신 가능 검증 (spec §7.7)
 
-- [ ] T4.4 `RecipientStatusPort` 포트 인터페이스 + 패턴 스텁 구현 (`withdrawn-*` = 수신 불가)
-- [ ] T4.5 워커 발송 직전 검증: 수신 불가 → 발송 없이 재시도 없이 FAILED + 실패 코드 `RECIPIENT_GONE` (attempt 이력 1건 기록)
+- [ ] T4.4 `RecipientStatusPort` 포트 인터페이스 — 상태 반환 계약 (ACTIVE / WITHDRAWN / NOT_FOUND) + 패턴 스텁 구현 (`withdrawn-*` → WITHDRAWN, `ghost-*` → NOT_FOUND, 그 외 ACTIVE)
+- [ ] T4.5 워커 발송 직전 검증 정책: WITHDRAWN → FAILED + `RECIPIENT_GONE`(정상 억제) / NOT_FOUND → FAILED + `RECIPIENT_NOT_FOUND`(데이터 이상, 경고 로그) — 둘 다 발송기 미호출·재시도 없음, attempt 이력 1건 기록
 
 ### 재시도
 
@@ -126,7 +126,7 @@
 - [ ] T4.11 통합 테스트: 2회 실패 → 3회차 성공 → SENT + attempts 3건(실패 2, 성공 1)
 - [ ] T4.12 통합 테스트: max 연속 Transient 실패 → FAILED + last_error + 전체 이력
 - [ ] T4.13 통합 테스트: Permanent 실패 → 재시도 없이 즉시 FAILED
-- [ ] T4.14 통합 테스트: 수신 불가 수신자(`withdrawn-*`) → 발송기 미호출, 재시도 없이 FAILED + `RECIPIENT_GONE`
+- [ ] T4.14 통합 테스트: 탈퇴 수신자(`withdrawn-*`) → 발송기 미호출·FAILED + `RECIPIENT_GONE` / 미존재 수신자(`ghost-*`) → 발송기 미호출·FAILED + `RECIPIENT_NOT_FOUND` + 경고 로그
 - [ ] T4.15 단위 테스트: `next_attempt_at` 이 백오프 정책대로 설정
 - [ ] T4.16 테스트: 설정 변경(횟수/간격)이 동작에 반영됨
 - [ ] T4.17 ⛳ 전체 테스트 통과 + **커밋** (`feat: 발송 실패 재시도·최종 실패·수신 가능 검증`)
@@ -198,7 +198,7 @@
 ### C 전용 추가 제출물
 
 - [ ] T8.10 비동기 처리 구조 및 재시도 정책 문서: 아키텍처 다이어그램(mermaid), 상태 머신 전이 표, 트랜잭션 경계, 백오프 정책, 브로커 전환 시나리오 (spec §5.4 표)
-- [ ] T8.11 요구사항 해석 및 개선 의견: at-least-once 한계와 개선 방향(수신측 멱등성, dedupe), 탈퇴 이벤트 연동에 의한 선제 취소(CANCELED 상태 도입)·탈퇴자 알림 데이터 파기 정책(§7.6·§7.7), 요구사항 자체에 대한 제안
+- [ ] T8.11 요구사항 해석 및 개선 의견: at-least-once 한계와 개선 방향(수신측 멱등성, dedupe), 탈퇴 이벤트 연동에 의한 선제 취소(CANCELED 상태 도입)·탈퇴자 알림 데이터 파기 정책(§7.6·§7.7), 수신 가능 정책의 알림 타입 차원(거래성 vs 마케팅성 — 탈퇴자에게도 가야 하는 알림), 요구사항 자체에 대한 제안
 
 ### 데모 + 최종 검증
 
