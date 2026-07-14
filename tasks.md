@@ -66,11 +66,11 @@
 - [x] T2.2 등록 흐름 1차 방어: 사전 조회(`findByIdempotencyKey`) → 존재 시 `202 + 기존 ID + duplicated: true`. 컨트롤러 `Idempotency-Key` 헤더 배선 + 서비스 키 생성/사전 조회
 - [x] T2.3 등록 흐름 2차 방어: `NotificationInserter`(REQUIRES_NEW)로 INSERT 격리, 서비스는 트랜잭션 밖에서 `DataIntegrityViolationException` 캐치 → 새 트랜잭션 재조회 → 승자 반환 (decisions.md D-1)
 - [x] T2.4 컨트롤러 상태 코드 분기 제거 → 신규·중복 항상 202 (T2.2에 포함, 리뷰 코멘트 2·3 반영, decisions.md D-1)
-- [ ] T2.5 키 오용 처리: 같은 `Idempotency-Key` + 다른 요청 본문 → `422 Unprocessable`
+- [x] T2.5 키 오용 처리: 같은 `Idempotency-Key` + 다른 요청 본문 → `422 IDEMPOTENCY_KEY_MISUSE`. 별도 fingerprint 컬럼 없이 재조회된 기존 행의 필드(type/refType/refId/receiverId/channel)를 요청과 비교 — 내용 기반 키는 키가 곧 조합 해시라 항상 일치, 명시 헤더 키 재사용 시에만 실제 감지
 - [x] T2.6 통합 테스트: 동일 키 순차 재요청 → 202 + 기존 ID + `duplicated:true`, 신규 행 없음
 - [x] T2.7 동시성 테스트: 동일 키 10-스레드 동시 등록 (`ExecutorService` + `CountDownLatch`) → 알림 정확히 1건, 전부 같은 ID, 생성 1·중복 9 (더블클릭·이중제출 시나리오, 실 MySQL)
 - [x] T2.8 테스트: 같은 이벤트·다른 채널(EMAIL vs IN_APP) → 각각 생성, 2건 (spec §7.1)
-- [ ] T2.9 ⛳ 전체 테스트 통과 + **커밋** (`feat: 멱등성 기반 중복 요청 방지`)
+- [x] T2.9 ⛳ 전체 테스트 통과(31건) + **커밋**
 
 ---
 

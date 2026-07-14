@@ -68,4 +68,34 @@ class IdempotencyApiTest extends IntegrationTestSupport {
         assertThat(inAppId).isNotEqualTo(emailId);
         assertThat(repository.count()).isEqualTo(2);
     }
+
+    @Test
+    void 같은_Idempotency_Key에_같은_본문이면_멱등_재생으로_처리된다() throws Exception {
+        mockMvc.perform(post("/api/notifications").header("Idempotency-Key", "client-key-1")
+                        .contentType(MediaType.APPLICATION_JSON).content(BODY))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.duplicated").value(false));
+
+        mockMvc.perform(post("/api/notifications").header("Idempotency-Key", "client-key-1")
+                        .contentType(MediaType.APPLICATION_JSON).content(BODY))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.duplicated").value(true));
+
+        assertThat(repository.count()).isEqualTo(1);
+    }
+
+    @Test
+    void 같은_Idempotency_Key에_다른_본문이_오면_422_키_오용이다() throws Exception {
+        mockMvc.perform(post("/api/notifications").header("Idempotency-Key", "client-key-2")
+                        .contentType(MediaType.APPLICATION_JSON).content(BODY))
+                .andExpect(status().isAccepted());
+
+        String differentBody = BODY.replace("enrollment-42", "enrollment-99");
+        mockMvc.perform(post("/api/notifications").header("Idempotency-Key", "client-key-2")
+                        .contentType(MediaType.APPLICATION_JSON).content(differentBody))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_MISUSE"));
+
+        assertThat(repository.count()).isEqualTo(1);
+    }
 }

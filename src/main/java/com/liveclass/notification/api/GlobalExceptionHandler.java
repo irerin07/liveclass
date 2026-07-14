@@ -1,5 +1,6 @@
 package com.liveclass.notification.api;
 
+import com.liveclass.notification.application.IdempotencyKeyMisuseException;
 import com.liveclass.notification.application.NotificationNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -15,6 +16,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleNotFound(NotificationNotFoundException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(new ErrorResponse("NOTIFICATION_NOT_FOUND", e.getMessage()));
+    }
+
+    @ExceptionHandler(IdempotencyKeyMisuseException.class)
+    public ResponseEntity<ErrorResponse> handleKeyMisuse(IdempotencyKeyMisuseException e) {
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .body(new ErrorResponse("IDEMPOTENCY_KEY_MISUSE", e.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

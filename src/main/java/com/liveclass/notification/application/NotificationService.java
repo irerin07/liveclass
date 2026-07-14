@@ -2,6 +2,7 @@ package com.liveclass.notification.application;
 
 import com.liveclass.notification.domain.Notification;
 import com.liveclass.notification.infra.persistence.NotificationRepository;
+import java.util.Objects;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -36,18 +37,36 @@ public class NotificationService {
 
         Optional<Notification> existing = repository.findByIdempotencyKey(key);
         if (existing.isPresent()) {
-            return RegistrationResult.duplicated(existing.get());
+            return asDuplicate(existing.get(), command);
         }
 
         try {
             return RegistrationResult.created(inserter.insert(key, command));
         } catch (DataIntegrityViolationException race) {
             // 동시 요청 경쟁에서 졌다 — 승자가 이미 커밋했으므로 새 트랜잭션 재조회로 찾는다.
-            return repository.findByIdempotencyKey(key)
-                    .map(RegistrationResult::duplicated)
+            Notification winner = repository.findByIdempotencyKey(key)
                     .orElseThrow(() -> new IllegalStateException(
                             "멱등성 키 제약 위반이 발생했으나 기존 행을 찾을 수 없음: key=" + key, race));
+            return asDuplicate(winner, command);
         }
+    }
+
+    /**
+     * 재생(replay) 처리. 단, 같은 키에 다른 요청 본문이면 재시도가 아니라 키 오용이므로
+     * 거부한다 (spec §5.3). 내용 기반 키는 키가 곧 내용 조합의 해시라 항상 일치하고,
+     * 이 검증은 클라이언트 제공 {@code Idempotency-Key}를 다른 본문에 재사용한 경우에만
+     * 실제로 걸린다.
+     */
+    private RegistrationResult asDuplicate(Notification existing, RegisterNotificationCommand command) {
+        boolean sameRequest = existing.getType() == command.type()
+                && existing.getChannel() == command.channel()
+                && Objects.equals(existing.getReceiverId(), command.receiverId())
+                && Objects.equals(existing.getRefType(), command.refType())
+                && Objects.equals(existing.getRefId(), command.refId());
+        if (!sameRequest) {
+            throw new IdempotencyKeyMisuseException();
+        }
+        return RegistrationResult.duplicated(existing);
     }
 
     @Transactional(readOnly = true)
