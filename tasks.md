@@ -62,7 +62,7 @@
 
 ## Phase 2 — 멱등성 (FR-6)
 
-- [ ] T2.1 멱등성 키 생성기: `type:refType:refId:receiverId:channel`, `Idempotency-Key` 헤더 오버라이드 지원 (spec §5.3)
+- [x] T2.1 멱등성 키 생성기: `type:refType:refId:receiverId:channel`, `Idempotency-Key` 헤더 오버라이드 지원. 저장 키는 SHA-256 해시(원시 조합이 컬럼 200자 초과 가능·구분자 충돌 방지) (spec §5.3)
 - [ ] T2.2 등록 흐름 1차 방어: 사전 조회 → 존재 시 `202 + 기존 ID + duplicated: true` (신규와 동일 코드, replay)
 - [ ] T2.3 등록 흐름 2차 방어: INSERT의 `DataIntegrityViolationException` 캐치 → 기존 행 재조회 → 202 응답 (등록 트랜잭션 분리 — plan.md Phase 2 기술 메모의 REQUIRES_NEW 구조)
 - [ ] T2.4 컨트롤러 상태 코드 분기 제거 → 신규·중복 항상 202 (리뷰 코멘트 2·3 반영, decisions.md D-1)
