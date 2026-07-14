@@ -43,32 +43,34 @@
 
 ### 도메인
 
-- [ ] T1.1 `NotificationStatus` enum (PENDING / PROCESSING / SENT / FAILED)
-- [ ] T1.2 `NotificationType`, `Channel` enum (EMAIL / IN_APP)
-- [ ] T1.3 `Notification` 엔티티: spec §5.5 전체 컬럼 정의 (attempt_count, next_attempt_at, processing_started_at 등 이후 phase 컬럼 포함), `idempotency_key`는 처음부터 UNIQUE — Phase 1에서는 UUID 저장
-- [ ] T1.4 상태 전이 메서드 구현: `claim(clock)`, `markSent(clock)`, `scheduleRetry(nextAt)`, `markFailed(reason)` — 비허용 전이는 도메인 예외
-- [ ] T1.5 `NotificationAttempt` 엔티티 정의 (기록 로직은 Phase 4)
-- [ ] T1.6 상태 전이 단위 테스트: 허용 전이 전체 + 비허용 전이(SENT→PENDING, FAILED→PROCESSING 등) 예외 검증
+- [x] T1.1 `NotificationStatus` enum (PENDING / PROCESSING / SENT / FAILED)
+- [x] T1.2 `NotificationType`, `Channel` enum (EMAIL / IN_APP)
+- [x] T1.3 `Notification` 엔티티: spec §5.5 전체 컬럼 정의 (attempt_count, next_attempt_at, processing_started_at 등 이후 phase 컬럼 포함), `idempotency_key` UNIQUE — Phase 1에서는 UUID 저장
+- [x] T1.4 상태 전이 메서드 구현: `claim(clock)`, `markSent(clock)`, `scheduleRetry(nextAt, error, clock)`, `markFailed(reason, clock)` — 비허용 전이·시도 예산 소진은 `InvalidStateTransitionException`
+- [x] T1.5 `NotificationAttempt` 엔티티 정의 (success/failure 팩토리 포함, 기록 로직은 Phase 4)
+- [x] T1.6 상태 전이 단위 테스트 13건: 허용 전이 전체(부수 효과 포함) + 비허용 전이 예외 + 최종 상태 불변 + 1000자 절단
 
 ### API
 
-- [ ] T1.7 `POST /api/notifications` 요청/응답 DTO (record) + Bean Validation (`@NotNull`, enum 바인딩 에러 → 400 매핑)
-- [ ] T1.8 등록 서비스: PENDING 저장 → 202 + `{notificationId, status, duplicated: false}` (멱등성 없음 — Phase 2)
-- [ ] T1.9 `GET /api/notifications/{id}` 단건 조회 + 404 처리
-- [ ] T1.10 통합 테스트: POST 202 → DB PENDING 확인, GET 200/404, 검증 실패 400 + 에러 형식
-- [ ] T1.11 ⛳ 전체 테스트 통과 + **커밋** (`feat: 알림 요청 등록 및 조회 API`)
+- [x] T1.7 `POST /api/notifications` 요청/응답 DTO (record) + Bean Validation (enum 바인딩 에러 → 400 매핑)
+- [x] T1.8 등록 서비스: PENDING 저장 → 202 + `{notificationId, status, duplicated: false}` (멱등성 없음 — Phase 2)
+- [x] T1.9 `GET /api/notifications/{id}` 단건 조회 + 404 (`NOTIFICATION_NOT_FOUND`)
+- [x] T1.10 통합 테스트 5건: POST 202 → DB PENDING 확인, GET 200/404, 필수 필드 누락 400, 잘못된 enum 400
+- [x] T1.11 ⛳ 전체 테스트 통과(19건) + **커밋** (`feat: 알림 요청 등록 및 조회 API`)
 
 ---
 
 ## Phase 2 — 멱등성 (FR-6)
 
 - [ ] T2.1 멱등성 키 생성기: `type:refType:refId:receiverId:channel`, `Idempotency-Key` 헤더 오버라이드 지원 (spec §5.3)
-- [ ] T2.2 등록 흐름 1차 방어: 사전 조회 → 존재 시 `200 + 기존 ID + duplicated: true`
-- [ ] T2.3 등록 흐름 2차 방어: INSERT의 `DataIntegrityViolationException` 캐치 → 기존 행 재조회 → 200 응답 (등록 트랜잭션 분리 — plan.md Phase 2 기술 메모의 REQUIRES_NEW 구조)
-- [ ] T2.4 통합 테스트: 동일 키 순차 재요청 → 200 + 기존 ID, 신규 행 없음
-- [ ] T2.5 동시성 테스트: 동일 키 10-스레드 동시 POST (`ExecutorService` + `CountDownLatch`) → 알림 정확히 1건, 전 응답 정상
-- [ ] T2.6 테스트: 같은 이벤트·다른 채널(EMAIL vs IN_APP) → 각각 생성 (spec §7.1)
-- [ ] T2.7 ⛳ 전체 테스트 통과 + **커밋** (`feat: 멱등성 기반 중복 요청 방지`)
+- [ ] T2.2 등록 흐름 1차 방어: 사전 조회 → 존재 시 `202 + 기존 ID + duplicated: true` (신규와 동일 코드, replay)
+- [ ] T2.3 등록 흐름 2차 방어: INSERT의 `DataIntegrityViolationException` 캐치 → 기존 행 재조회 → 202 응답 (등록 트랜잭션 분리 — plan.md Phase 2 기술 메모의 REQUIRES_NEW 구조)
+- [ ] T2.4 컨트롤러 상태 코드 분기 제거 → 신규·중복 항상 202 (리뷰 코멘트 2·3 반영, decisions.md D-1)
+- [ ] T2.5 키 오용 처리: 같은 `Idempotency-Key` + 다른 요청 본문 → `422 Unprocessable`
+- [ ] T2.6 통합 테스트: 동일 키 순차 재요청 → 202 + 기존 ID + `duplicated:true`, 신규 행 없음
+- [ ] T2.7 동시성 테스트: 동일 키 10-스레드 동시 POST (`ExecutorService` + `CountDownLatch`) → 알림 정확히 1건, 전 응답 202 (더블클릭·이중제출 시나리오)
+- [ ] T2.8 테스트: 같은 이벤트·다른 채널(EMAIL vs IN_APP) → 각각 생성 (spec §7.1)
+- [ ] T2.9 ⛳ 전체 테스트 통과 + **커밋** (`feat: 멱등성 기반 중복 요청 방지`)
 
 ---
 
@@ -216,4 +218,8 @@
 
 - [x] (T0.7) Querydsl 최종 구성: **본가 `com.querydsl:querydsl-jpa:5.1.0:jakarta` 유지.** Boot 4.0.7(Hibernate 7.1) 위에서 Q클래스 생성(APT) + `JPAQueryFactory` 쿼리 실행 스모크 통과 — OpenFeign 포크 폴백 불필요
 - [x] (Phase 0) Boot 4 마이그레이션 메모: `spring-boot-starter-web` → `starter-webmvc`, 테스트 슬라이스가 모듈별 아티팩트로 분리(`spring-boot-data-jpa-test`의 `...data.jpa.test.autoconfigure.DataJpaTest`, `spring-boot-jdbc-test`의 `...jdbc.test.autoconfigure.AutoConfigureTestDatabase`), `@EntityScan` → `...persistence.autoconfigure`. Testcontainers 2.x: 아티팩트 `testcontainers-mysql`/`testcontainers-junit-jupiter`, `MySQLContainer` 제네릭 제거, 신규 패키지 `org.testcontainers.mysql`
+- [x] (Phase 1) Boot 4는 **Jackson 3**(`tools.jackson.*`) 기반 — 웹 계층 JSON은 `spring-boot-starter-jackson` 명시 추가, import는 `tools.jackson.databind.*`. 반면 Hibernate 7.2의 JSON FormatMapper(payload JSON 컬럼)는 Jackson 2 하드와이어 → `com.fasterxml.jackson.core:jackson-databind` (Boot BOM 미관리, 버전 명시)를 **Hibernate 전용 runtimeOnly**로 추가. 웹과 영속 계층이 서로 다른 Jackson을 쓰는 상태를 주석으로 명시
+- [x] (Phase 1) MockMvc 테스트: Boot 4에서 `spring-boot-webmvc-test` 아티팩트 + `...webmvc.test.autoconfigure.AutoConfigureMockMvc`
+- [x] (Phase 1) 테스트 명명: 한글 메서드명은 유지하되 `@Nested` 클래스명은 영문 + `@DisplayName` — 한글 중첩 클래스명은 클래스 파일명이 되어 비UTF-8 파일시스템에서 컴파일 실패 가능
+- [x] (Phase 1, 리뷰 반영) **Lombok 도입** — 프로젝트 컨벤션으로 채택. 빈은 `@RequiredArgsConstructor`, 엔티티는 `@Getter` + `@NoArgsConstructor(access = PROTECTED)`. Querydsl APT + Lombok 동시 애노테이션 프로세싱이 Boot 4/Java 21에서 정상 컴파일 확인 (build.gradle의 annotationProcessor에 lombok 추가). Boot BOM이 Lombok 버전 관리
 - [ ] (T3.4) SKIP LOCKED 구현 방식: _(미정 — JPA 힌트 vs 네이티브 쿼리)_
