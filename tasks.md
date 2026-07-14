@@ -43,20 +43,20 @@
 
 ### 도메인
 
-- [ ] T1.1 `NotificationStatus` enum (PENDING / PROCESSING / SENT / FAILED)
-- [ ] T1.2 `NotificationType`, `Channel` enum (EMAIL / IN_APP)
-- [ ] T1.3 `Notification` 엔티티: spec §5.5 전체 컬럼 정의 (attempt_count, next_attempt_at, processing_started_at 등 이후 phase 컬럼 포함), `idempotency_key`는 처음부터 UNIQUE — Phase 1에서는 UUID 저장
-- [ ] T1.4 상태 전이 메서드 구현: `claim(clock)`, `markSent(clock)`, `scheduleRetry(nextAt)`, `markFailed(reason)` — 비허용 전이는 도메인 예외
-- [ ] T1.5 `NotificationAttempt` 엔티티 정의 (기록 로직은 Phase 4)
-- [ ] T1.6 상태 전이 단위 테스트: 허용 전이 전체 + 비허용 전이(SENT→PENDING, FAILED→PROCESSING 등) 예외 검증
+- [x] T1.1 `NotificationStatus` enum (PENDING / PROCESSING / SENT / FAILED)
+- [x] T1.2 `NotificationType`, `Channel` enum (EMAIL / IN_APP)
+- [x] T1.3 `Notification` 엔티티: spec §5.5 전체 컬럼 정의 (attempt_count, next_attempt_at, processing_started_at 등 이후 phase 컬럼 포함), `idempotency_key` UNIQUE — Phase 1에서는 UUID 저장
+- [x] T1.4 상태 전이 메서드 구현: `claim(clock)`, `markSent(clock)`, `scheduleRetry(nextAt, error, clock)`, `markFailed(reason, clock)` — 비허용 전이·시도 예산 소진은 `InvalidStateTransitionException`
+- [x] T1.5 `NotificationAttempt` 엔티티 정의 (success/failure 팩토리 포함, 기록 로직은 Phase 4)
+- [x] T1.6 상태 전이 단위 테스트 13건: 허용 전이 전체(부수 효과 포함) + 비허용 전이 예외 + 최종 상태 불변 + 1000자 절단
 
 ### API
 
-- [ ] T1.7 `POST /api/notifications` 요청/응답 DTO (record) + Bean Validation (`@NotNull`, enum 바인딩 에러 → 400 매핑)
-- [ ] T1.8 등록 서비스: PENDING 저장 → 202 + `{notificationId, status, duplicated: false}` (멱등성 없음 — Phase 2)
-- [ ] T1.9 `GET /api/notifications/{id}` 단건 조회 + 404 처리
-- [ ] T1.10 통합 테스트: POST 202 → DB PENDING 확인, GET 200/404, 검증 실패 400 + 에러 형식
-- [ ] T1.11 ⛳ 전체 테스트 통과 + **커밋** (`feat: 알림 요청 등록 및 조회 API`)
+- [x] T1.7 `POST /api/notifications` 요청/응답 DTO (record) + Bean Validation (enum 바인딩 에러 → 400 매핑)
+- [x] T1.8 등록 서비스: PENDING 저장 → 202 + `{notificationId, status, duplicated: false}` (멱등성 없음 — Phase 2)
+- [x] T1.9 `GET /api/notifications/{id}` 단건 조회 + 404 (`NOTIFICATION_NOT_FOUND`)
+- [x] T1.10 통합 테스트 5건: POST 202 → DB PENDING 확인, GET 200/404, 필수 필드 누락 400, 잘못된 enum 400
+- [x] T1.11 ⛳ 전체 테스트 통과(19건) + **커밋** (`feat: 알림 요청 등록 및 조회 API`)
 
 ---
 
@@ -216,4 +216,7 @@
 
 - [x] (T0.7) Querydsl 최종 구성: **본가 `com.querydsl:querydsl-jpa:5.1.0:jakarta` 유지.** Boot 4.0.7(Hibernate 7.1) 위에서 Q클래스 생성(APT) + `JPAQueryFactory` 쿼리 실행 스모크 통과 — OpenFeign 포크 폴백 불필요
 - [x] (Phase 0) Boot 4 마이그레이션 메모: `spring-boot-starter-web` → `starter-webmvc`, 테스트 슬라이스가 모듈별 아티팩트로 분리(`spring-boot-data-jpa-test`의 `...data.jpa.test.autoconfigure.DataJpaTest`, `spring-boot-jdbc-test`의 `...jdbc.test.autoconfigure.AutoConfigureTestDatabase`), `@EntityScan` → `...persistence.autoconfigure`. Testcontainers 2.x: 아티팩트 `testcontainers-mysql`/`testcontainers-junit-jupiter`, `MySQLContainer` 제네릭 제거, 신규 패키지 `org.testcontainers.mysql`
+- [x] (Phase 1) Boot 4는 **Jackson 3**(`tools.jackson.*`) 기반 — 웹 계층 JSON은 `spring-boot-starter-jackson` 명시 추가, import는 `tools.jackson.databind.*`. 반면 Hibernate 7.2의 JSON FormatMapper(payload JSON 컬럼)는 Jackson 2 하드와이어 → `com.fasterxml.jackson.core:jackson-databind` (Boot BOM 미관리, 버전 명시)를 **Hibernate 전용 runtimeOnly**로 추가. 웹과 영속 계층이 서로 다른 Jackson을 쓰는 상태를 주석으로 명시
+- [x] (Phase 1) MockMvc 테스트: Boot 4에서 `spring-boot-webmvc-test` 아티팩트 + `...webmvc.test.autoconfigure.AutoConfigureMockMvc`
+- [x] (Phase 1) 테스트 명명: 한글 메서드명은 유지하되 `@Nested` 클래스명은 영문 + `@DisplayName` — 한글 중첩 클래스명은 클래스 파일명이 되어 비UTF-8 파일시스템에서 컴파일 실패 가능
 - [ ] (T3.4) SKIP LOCKED 구현 방식: _(미정 — JPA 힌트 vs 네이티브 쿼리)_
