@@ -11,31 +11,31 @@
 
 ### 프로젝트 생성
 
-- [ ] T0.1 Spring Boot 4.x + Java 21 Gradle 프로젝트 생성 (`spring-boot-starter-web`, `data-jpa`, `validation`)
-- [ ] T0.2 `.gitignore` 정리 (build/, .idea/, Q클래스 생성 디렉토리 포함)
-- [ ] T0.3 테스트 의존성 추가: `spring-boot-starter-test`, Testcontainers(mysql, junit-jupiter), Awaitility
+- [x] T0.1 Spring Boot 4.x + Java 21 Gradle 프로젝트 생성 — Boot **4.0.7**, `starter-webmvc`(Boot 4에서 `starter-web` 대체), `data-jpa`, `validation`, `actuator`
+- [x] T0.2 `.gitignore` 정리 (build/, .idea/, Q클래스 생성 디렉토리 포함)
+- [x] T0.3 테스트 의존성 추가 — Boot 4는 Testcontainers **2.x**를 관리하며 아티팩트명이 변경됨: `testcontainers-mysql`, `testcontainers-junit-jupiter` + Awaitility
 
 ### Querydsl 스모크 (R-1 — 최우선)
 
-- [ ] T0.4 Querydsl 의존성 구성: `com.querydsl:querydsl-jpa:5.1.0:jakarta` + APT annotationProcessor 설정
-- [ ] T0.5 더미 엔티티 1개 작성 → `./gradlew build`로 Q클래스 생성 확인
-- [ ] T0.6 `JPAQueryFactory` 빈 등록 + 조회 쿼리 1건 **실행**되는 스모크 테스트 작성/통과
-- [ ] T0.7 (T0.5~6 실패 시에만) 폴백 적용: OpenFeign 포크 교체 → 재실패 시 Querydsl 제거·JPQL 결정. 결정 내용을 tasks.md 하단 [결정 기록]에 메모
+- [x] T0.4 Querydsl 의존성 구성: `com.querydsl:querydsl-jpa:5.1.0:jakarta` + APT annotationProcessor 설정
+- [x] T0.5 더미 엔티티(테스트 소스 전용, 앱 패키지 밖 격리) → Q클래스 생성 확인
+- [x] T0.6 `JPAQueryFactory` 조회 쿼리 실행 스모크 테스트 통과 (Testcontainers MySQL)
+- [x] T0.7 폴백 **불필요** — 본가 5.1.0:jakarta가 Boot 4.0.7/Hibernate 7에서 동작 확인 → [결정 기록] 반영
 
 ### 실행 환경
 
-- [ ] T0.8 `docker-compose.yml` 작성: `mysql:8` (utf8mb4, 타임존 UTC) + 애플리케이션 서비스
-- [ ] T0.9 `application.yml` 기본 구성: 데이터소스(`connectionTimeZone=UTC`), JPA(`ddl-auto=validate`), 로깅
-- [ ] T0.10 `schema.sql` 초안: `notifications`, `notification_attempts` 테이블 + 인덱스 2종 + UNIQUE 제약 (spec §5.5 그대로)
-- [ ] T0.11 Docker Compose로 앱 + MySQL 기동 → health check(`/actuator/health` 또는 단순 엔드포인트) 응답 확인
+- [x] T0.8 `docker-compose.yml` 작성: `mysql:8` (utf8mb4, 타임존 UTC) + 애플리케이션 서비스 + Dockerfile(멀티스테이지)
+- [x] T0.9 `application.yml` 기본 구성: 데이터소스(`connectionTimeZone=UTC`), JPA(`ddl-auto=validate`), sql init
+- [x] T0.10 `schema.sql` 초안: `notifications`, `notification_attempts` 테이블 + 인덱스 2종 + UNIQUE 제약 (spec §5.5 그대로)
+- [x] T0.11 compose MySQL + 앱 기동 → `/actuator/health` 200 UP 확인. 단, 샌드박스 프록시 제약으로 app 컨테이너 **이미지 빌드**는 미검증 — T8.13 최종 검증에서 재확인
 
 ### 공통 기반
 
-- [ ] T0.12 패키지 구조 생성: `api / application / domain / infra(persistence, worker, sender) / config` (plan.md Phase 0 기술 메모)
-- [ ] T0.13 `@ConfigurationProperties(prefix = "notification")` 설정 클래스 골격 (폴링·재시도·스턱 필드는 해당 phase에서 추가)
-- [ ] T0.14 에러 응답 형식 `{code, message}` + `@RestControllerAdvice` 골격
-- [ ] T0.15 Testcontainers 통합 테스트 베이스 클래스 (`@ServiceConnection`, MySQL 8 컨테이너 재사용 설정)
-- [ ] T0.16 ⛳ context load 통합 테스트 통과 + **커밋** (`chore: 프로젝트 골격 및 기술 검증`)
+- [x] T0.12 패키지 구조 생성: `api / config` (domain/application/infra는 해당 클래스가 생기는 phase에서 생성)
+- [x] T0.13 `NotificationProperties` 설정 클래스 골격 (pollingInterval, batchSize — 재시도·스턱 필드는 해당 phase에서 추가)
+- [x] T0.14 에러 응답 형식 `{code, message}` + `@RestControllerAdvice` 골격
+- [x] T0.15 Testcontainers 통합 테스트 베이스 클래스 (`IntegrationTestSupport`, `@ServiceConnection`)
+- [x] T0.16 ⛳ context load 통합 테스트 통과 + **커밋** (`chore: 프로젝트 골격 및 기술 검증`)
 
 ---
 
@@ -214,5 +214,6 @@
 
 > 진행 중 내린 기술 결정을 여기에 누적한다. Phase 8에서 README "설계 결정과 이유"로 이관.
 
-- [ ] (T0.7) Querydsl 최종 구성: _(미정 — 스모크 결과 기록)_
+- [x] (T0.7) Querydsl 최종 구성: **본가 `com.querydsl:querydsl-jpa:5.1.0:jakarta` 유지.** Boot 4.0.7(Hibernate 7.1) 위에서 Q클래스 생성(APT) + `JPAQueryFactory` 쿼리 실행 스모크 통과 — OpenFeign 포크 폴백 불필요
+- [x] (Phase 0) Boot 4 마이그레이션 메모: `spring-boot-starter-web` → `starter-webmvc`, 테스트 슬라이스가 모듈별 아티팩트로 분리(`spring-boot-data-jpa-test`의 `...data.jpa.test.autoconfigure.DataJpaTest`, `spring-boot-jdbc-test`의 `...jdbc.test.autoconfigure.AutoConfigureTestDatabase`), `@EntityScan` → `...persistence.autoconfigure`. Testcontainers 2.x: 아티팩트 `testcontainers-mysql`/`testcontainers-junit-jupiter`, `MySQLContainer` 제네릭 제거, 신규 패키지 `org.testcontainers.mysql`
 - [ ] (T3.4) SKIP LOCKED 구현 방식: _(미정 — JPA 힌트 vs 네이티브 쿼리)_

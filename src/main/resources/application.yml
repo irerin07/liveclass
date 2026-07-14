@@ -1,0 +1,32 @@
+spring:
+  application:
+    name: notification
+
+  datasource:
+    url: jdbc:mysql://localhost:3306/notification?connectionTimeZone=UTC
+    username: app
+    password: app-password
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+  sql:
+    init:
+      mode: always
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+notification:
+  polling-interval: 1s
+  batch-size: 50
