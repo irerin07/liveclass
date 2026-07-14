@@ -69,7 +69,7 @@
 - [ ] T2.5 키 오용 처리: 같은 `Idempotency-Key` + 다른 요청 본문 → `422 Unprocessable`
 - [x] T2.6 통합 테스트: 동일 키 순차 재요청 → 202 + 기존 ID + `duplicated:true`, 신규 행 없음
 - [x] T2.7 동시성 테스트: 동일 키 10-스레드 동시 등록 (`ExecutorService` + `CountDownLatch`) → 알림 정확히 1건, 전부 같은 ID, 생성 1·중복 9 (더블클릭·이중제출 시나리오, 실 MySQL)
-- [ ] T2.8 테스트: 같은 이벤트·다른 채널(EMAIL vs IN_APP) → 각각 생성 (spec §7.1)
+- [x] T2.8 테스트: 같은 이벤트·다른 채널(EMAIL vs IN_APP) → 각각 생성, 2건 (spec §7.1)
 - [ ] T2.9 ⛳ 전체 테스트 통과 + **커밋** (`feat: 멱등성 기반 중복 요청 방지`)
 
 ---

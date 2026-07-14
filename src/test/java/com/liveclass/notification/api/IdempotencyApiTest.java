@@ -40,10 +40,10 @@ class IdempotencyApiTest extends IntegrationTestSupport {
             }
             """;
 
-    private long postExpectingAccepted(boolean expectedDuplicated) throws Exception {
+    private long postExpectingAccepted(String body, boolean expectedDuplicated) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/notifications")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(BODY))
+                        .content(body))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.duplicated").value(expectedDuplicated))
                 .andReturn();
@@ -53,10 +53,19 @@ class IdempotencyApiTest extends IntegrationTestSupport {
 
     @Test
     void 동일_키_순차_재요청은_202_기존_ID_duplicated_true를_반환하고_행을_새로_만들지_않는다() throws Exception {
-        long firstId = postExpectingAccepted(false);
-        long secondId = postExpectingAccepted(true);
+        long firstId = postExpectingAccepted(BODY, false);
+        long secondId = postExpectingAccepted(BODY, true);
 
         assertThat(secondId).isEqualTo(firstId);
         assertThat(repository.count()).isEqualTo(1);
+    }
+
+    @Test
+    void 같은_이벤트라도_채널이_다르면_각각_생성된다() throws Exception {
+        long emailId = postExpectingAccepted(BODY, false);
+        long inAppId = postExpectingAccepted(BODY.replace("\"EMAIL\"", "\"IN_APP\""), false);
+
+        assertThat(inAppId).isNotEqualTo(emailId);
+        assertThat(repository.count()).isEqualTo(2);
     }
 }
