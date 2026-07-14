@@ -63,12 +63,14 @@
 ## Phase 2 — 멱등성 (FR-6)
 
 - [ ] T2.1 멱등성 키 생성기: `type:refType:refId:receiverId:channel`, `Idempotency-Key` 헤더 오버라이드 지원 (spec §5.3)
-- [ ] T2.2 등록 흐름 1차 방어: 사전 조회 → 존재 시 `200 + 기존 ID + duplicated: true`
-- [ ] T2.3 등록 흐름 2차 방어: INSERT의 `DataIntegrityViolationException` 캐치 → 기존 행 재조회 → 200 응답 (등록 트랜잭션 분리 — plan.md Phase 2 기술 메모의 REQUIRES_NEW 구조)
-- [ ] T2.4 통합 테스트: 동일 키 순차 재요청 → 200 + 기존 ID, 신규 행 없음
-- [ ] T2.5 동시성 테스트: 동일 키 10-스레드 동시 POST (`ExecutorService` + `CountDownLatch`) → 알림 정확히 1건, 전 응답 정상
-- [ ] T2.6 테스트: 같은 이벤트·다른 채널(EMAIL vs IN_APP) → 각각 생성 (spec §7.1)
-- [ ] T2.7 ⛳ 전체 테스트 통과 + **커밋** (`feat: 멱등성 기반 중복 요청 방지`)
+- [ ] T2.2 등록 흐름 1차 방어: 사전 조회 → 존재 시 `202 + 기존 ID + duplicated: true` (신규와 동일 코드, replay)
+- [ ] T2.3 등록 흐름 2차 방어: INSERT의 `DataIntegrityViolationException` 캐치 → 기존 행 재조회 → 202 응답 (등록 트랜잭션 분리 — plan.md Phase 2 기술 메모의 REQUIRES_NEW 구조)
+- [ ] T2.4 컨트롤러 상태 코드 분기 제거 → 신규·중복 항상 202 (리뷰 코멘트 2·3 반영, decisions.md D-1)
+- [ ] T2.5 키 오용 처리: 같은 `Idempotency-Key` + 다른 요청 본문 → `422 Unprocessable`
+- [ ] T2.6 통합 테스트: 동일 키 순차 재요청 → 202 + 기존 ID + `duplicated:true`, 신규 행 없음
+- [ ] T2.7 동시성 테스트: 동일 키 10-스레드 동시 POST (`ExecutorService` + `CountDownLatch`) → 알림 정확히 1건, 전 응답 202 (더블클릭·이중제출 시나리오)
+- [ ] T2.8 테스트: 같은 이벤트·다른 채널(EMAIL vs IN_APP) → 각각 생성 (spec §7.1)
+- [ ] T2.9 ⛳ 전체 테스트 통과 + **커밋** (`feat: 멱등성 기반 중복 요청 방지`)
 
 ---
 
