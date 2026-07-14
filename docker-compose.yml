@@ -13,10 +13,14 @@ services:
     ports:
       - "3306:3306"
     healthcheck:
-      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-uapp", "-papp-password" ]
+      # 반드시 127.0.0.1(TCP)로 검사한다. localhost는 유닉스 소켓으로 붙는데,
+      # MySQL 최초 기동 시 초기화용 임시 서버(--skip-networking)가 소켓 ping에
+      # 응답해 진짜 서버가 뜨기 전에 healthy로 오판된다.
+      test: [ "CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uapp", "-papp-password" ]
       interval: 5s
       timeout: 3s
-      retries: 12
+      retries: 24
+      start_period: 30s
 
   app:
     build: .
