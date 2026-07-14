@@ -4,10 +4,12 @@ import com.liveclass.notification.domain.Notification;
 import com.liveclass.notification.infra.persistence.NotificationRepository;
 import java.time.Clock;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@RequiredArgsConstructor
 public class NotificationService {
 
     /** Phase 4에서 재시도 정책 설정(notification.retry.*)으로 대체된다. */
@@ -15,11 +17,6 @@ public class NotificationService {
 
     private final NotificationRepository repository;
     private final Clock clock;
-
-    public NotificationService(NotificationRepository repository, Clock clock) {
-        this.repository = repository;
-        this.clock = clock;
-    }
 
     /**
      * 알림 발송 요청 접수. 저장만 하고 즉시 반환한다 — 발송은 워커(Phase 3)의 몫이다.

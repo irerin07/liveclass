@@ -10,6 +10,9 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Clock;
 import java.time.Instant;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -19,6 +22,8 @@ import org.hibernate.type.SqlTypes;
  */
 @Entity
 @Table(name = "notifications")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Notification {
 
     private static final int LAST_ERROR_MAX_LENGTH = 1000;
@@ -81,9 +86,6 @@ public class Notification {
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
-
-    protected Notification() {
-    }
 
     private Notification(String idempotencyKey, String receiverId, NotificationType type,
                          Channel channel, String refType, String refId, String payload,
@@ -180,77 +182,5 @@ public class Notification {
         return error.length() <= LAST_ERROR_MAX_LENGTH
                 ? error
                 : error.substring(0, LAST_ERROR_MAX_LENGTH);
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public String getIdempotencyKey() {
-        return idempotencyKey;
-    }
-
-    public String getReceiverId() {
-        return receiverId;
-    }
-
-    public NotificationType getType() {
-        return type;
-    }
-
-    public Channel getChannel() {
-        return channel;
-    }
-
-    public String getRefType() {
-        return refType;
-    }
-
-    public String getRefId() {
-        return refId;
-    }
-
-    public String getPayload() {
-        return payload;
-    }
-
-    public NotificationStatus getStatus() {
-        return status;
-    }
-
-    public int getAttemptCount() {
-        return attemptCount;
-    }
-
-    public int getMaxAttempts() {
-        return maxAttempts;
-    }
-
-    public Instant getNextAttemptAt() {
-        return nextAttemptAt;
-    }
-
-    public Instant getProcessingStartedAt() {
-        return processingStartedAt;
-    }
-
-    public String getLastError() {
-        return lastError;
-    }
-
-    public Instant getSentAt() {
-        return sentAt;
-    }
-
-    public Instant getReadAt() {
-        return readAt;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public Instant getUpdatedAt() {
-        return updatedAt;
     }
 }

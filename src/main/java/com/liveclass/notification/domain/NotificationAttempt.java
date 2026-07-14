@@ -7,6 +7,9 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 /**
  * 발송 시도 이력. 알림 1건은 여러 시도를 가질 수 있으며,
@@ -14,6 +17,8 @@ import java.time.Instant;
  */
 @Entity
 @Table(name = "notification_attempts")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class NotificationAttempt {
 
     private static final int ERROR_MESSAGE_MAX_LENGTH = 1000;
@@ -39,9 +44,6 @@ public class NotificationAttempt {
 
     @Column(name = "error_message", length = 1000, updatable = false)
     private String errorMessage;
-
-    protected NotificationAttempt() {
-    }
 
     private NotificationAttempt(Long notificationId, int attemptNo, Instant startedAt,
                                 Instant finishedAt, boolean success, String errorMessage) {
@@ -72,33 +74,5 @@ public class NotificationAttempt {
         return message.length() <= ERROR_MESSAGE_MAX_LENGTH
                 ? message
                 : message.substring(0, ERROR_MESSAGE_MAX_LENGTH);
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public Long getNotificationId() {
-        return notificationId;
-    }
-
-    public int getAttemptNo() {
-        return attemptNo;
-    }
-
-    public Instant getStartedAt() {
-        return startedAt;
-    }
-
-    public Instant getFinishedAt() {
-        return finishedAt;
-    }
-
-    public boolean isSuccess() {
-        return success;
-    }
-
-    public String getErrorMessage() {
-        return errorMessage;
     }
 }

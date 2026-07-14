@@ -219,4 +219,5 @@
 - [x] (Phase 1) Boot 4는 **Jackson 3**(`tools.jackson.*`) 기반 — 웹 계층 JSON은 `spring-boot-starter-jackson` 명시 추가, import는 `tools.jackson.databind.*`. 반면 Hibernate 7.2의 JSON FormatMapper(payload JSON 컬럼)는 Jackson 2 하드와이어 → `com.fasterxml.jackson.core:jackson-databind` (Boot BOM 미관리, 버전 명시)를 **Hibernate 전용 runtimeOnly**로 추가. 웹과 영속 계층이 서로 다른 Jackson을 쓰는 상태를 주석으로 명시
 - [x] (Phase 1) MockMvc 테스트: Boot 4에서 `spring-boot-webmvc-test` 아티팩트 + `...webmvc.test.autoconfigure.AutoConfigureMockMvc`
 - [x] (Phase 1) 테스트 명명: 한글 메서드명은 유지하되 `@Nested` 클래스명은 영문 + `@DisplayName` — 한글 중첩 클래스명은 클래스 파일명이 되어 비UTF-8 파일시스템에서 컴파일 실패 가능
+- [x] (Phase 1, 리뷰 반영) **Lombok 도입** — 프로젝트 컨벤션으로 채택. 빈은 `@RequiredArgsConstructor`, 엔티티는 `@Getter` + `@NoArgsConstructor(access = PROTECTED)`. Querydsl APT + Lombok 동시 애노테이션 프로세싱이 Boot 4/Java 21에서 정상 컴파일 확인 (build.gradle의 annotationProcessor에 lombok 추가). Boot BOM이 Lombok 버전 관리
 - [ ] (T3.4) SKIP LOCKED 구현 방식: _(미정 — JPA 힌트 vs 네이티브 쿼리)_

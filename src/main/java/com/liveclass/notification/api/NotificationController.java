@@ -3,6 +3,7 @@ package com.liveclass.notification.api;
 import com.liveclass.notification.application.NotificationService;
 import com.liveclass.notification.application.RegistrationResult;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,13 +15,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/notifications")
+@RequiredArgsConstructor
 public class NotificationController {
 
     private final NotificationService notificationService;
-
-    public NotificationController(NotificationService notificationService) {
-        this.notificationService = notificationService;
-    }
 
     /**
      * 발송 요청 접수. 신규 접수는 202(발송은 비동기), 멱등 중복은 200 + 기존 ID (Phase 2).
