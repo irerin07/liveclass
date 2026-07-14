@@ -2,9 +2,9 @@ package com.liveclass.notification.application;
 
 import com.liveclass.notification.domain.Notification;
 import com.liveclass.notification.infra.persistence.NotificationRepository;
-import java.time.Clock;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,22 +12,24 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class NotificationService {
 
-    /** Phase 4에서 재시도 정책 설정(notification.retry.*)으로 대체된다. */
-    private static final int DEFAULT_MAX_ATTEMPTS = 3;
-
     private final NotificationRepository repository;
     private final IdempotencyKeyGenerator keyGenerator;
-    private final Clock clock;
+    private final NotificationInserter inserter;
 
     /**
      * 알림 발송 요청 접수. 저장만 하고 즉시 반환한다 — 발송은 워커(Phase 3)의 몫이다.
      *
-     * <p>1차 방어(사전 조회): 같은 멱등성 키의 알림이 이미 있으면 기존 것을 반환한다.
-     * 동시 요청 경쟁의 최종 방어(UNIQUE 제약 + 재조회)는 T2.3에서 추가된다.
+     * <p>멱등성 2중 방어 (spec §5.3, decisions.md D-1). 이 메서드는 <b>트랜잭션이 없다</b> —
+     * 제약 위반 예외를 트랜잭션 경계 밖에서 잡아야 INSERT 트랜잭션의 롤백이 재조회를
+     * 오염시키지 않기 때문이다.
+     * <ol>
+     *   <li>1차(사전 조회): 같은 키가 이미 있으면 기존 알림 반환 — 흔한 경로의 빠른 응답.</li>
+     *   <li>2차(UNIQUE 제약): 동시 요청이 사전 조회를 모두 통과한 경우, INSERT 중 한쪽이
+     *       제약 위반 → 예외를 잡아 <b>새 트랜잭션에서 재조회</b>하여 승자 행을 반환한다.</li>
+     * </ol>
      *
      * @param explicitIdempotencyKey 클라이언트 제공 {@code Idempotency-Key} 헤더 값 (nullable)
      */
-    @Transactional
     public RegistrationResult register(RegisterNotificationCommand command,
                                        String explicitIdempotencyKey) {
         String key = keyGenerator.generate(explicitIdempotencyKey, command);
@@ -37,18 +39,15 @@ public class NotificationService {
             return RegistrationResult.duplicated(existing.get());
         }
 
-        Notification notification = Notification.pending(
-                key,
-                command.receiverId(),
-                command.type(),
-                command.channel(),
-                command.refType(),
-                command.refId(),
-                command.payload(),
-                DEFAULT_MAX_ATTEMPTS,
-                clock
-        );
-        return RegistrationResult.created(repository.save(notification));
+        try {
+            return RegistrationResult.created(inserter.insert(key, command));
+        } catch (DataIntegrityViolationException race) {
+            // 동시 요청 경쟁에서 졌다 — 승자가 이미 커밋했으므로 새 트랜잭션 재조회로 찾는다.
+            return repository.findByIdempotencyKey(key)
+                    .map(RegistrationResult::duplicated)
+                    .orElseThrow(() -> new IllegalStateException(
+                            "멱등성 키 제약 위반이 발생했으나 기존 행을 찾을 수 없음: key=" + key, race));
+        }
     }
 
     @Transactional(readOnly = true)
