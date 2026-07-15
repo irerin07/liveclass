@@ -106,32 +106,32 @@
 
 ### 실패 모델
 
-- [ ] T4.1 `TransientSendException` / `PermanentSendException` 정의 (spec §7.3)
-- [ ] T4.2 `LoggingEmailSender` 실패 주입: 수신자 패턴 규칙 (`fail-2-times-*` → 2회차까지 Transient, `fail-permanent-*` → Permanent). 테스트/데모 겸용
-- [ ] T4.3 `Clock` 빈 등록 및 시간 사용 지점 전부 주입으로 전환 (엔티티 전이 메서드 포함)
+- [x] T4.1 `TransientSendException`(재시도 대상) / `PermanentSendException`(즉시 최종 실패) 정의 (spec §7.3)
+- [x] T4.2 `LoggingEmailSender` 실패 주입: `fail-permanent-*` → Permanent, `fail-<n>-times-*` → n회차까지 Transient(attemptCount 기반) 후 성공. 단위 테스트 4건
+- [x] T4.3 `Clock` 빈(ClockConfig, Phase 1부터) — 프로덕션 코드에 `Instant.now()`/`LocalDateTime.now()` 직접 호출 없음(grep 검증). 엔티티 전이 메서드·claimer·recorder 모두 주입 Clock 경유
 
 ### 수신 가능 검증 (spec §7.7)
 
-- [ ] T4.4 `RecipientStatusPort` 포트 인터페이스 — 상태 반환 계약 (ACTIVE / WITHDRAWN / NOT_FOUND) + 패턴 스텁 구현 (`withdrawn-*` → WITHDRAWN, `ghost-*` → NOT_FOUND, 그 외 ACTIVE)
-- [ ] T4.5 워커 발송 직전 검증 정책: WITHDRAWN → FAILED + `RECIPIENT_GONE`(정상 억제) / NOT_FOUND → FAILED + `RECIPIENT_NOT_FOUND`(데이터 이상, 경고 로그) — 둘 다 발송기 미호출·재시도 없음, attempt 이력 1건 기록
+- [x] T4.4 `RecipientStatusPort` 포트 (상태 반환: ACTIVE/WITHDRAWN/NOT_FOUND) + `PatternRecipientStatusPort` 스텁 (`withdrawn-*`→WITHDRAWN, `ghost-*`→NOT_FOUND, 그 외 ACTIVE). 단위 테스트 3건
+- [x] T4.5 워커 발송 직전 검증: RecipientStatusPort 확인 → WITHDRAWN → FAILED + `RECIPIENT_GONE`(억제) / NOT_FOUND → FAILED + `RECIPIENT_NOT_FOUND` + 경고 로그. 둘 다 발송기 미호출·재시도 없음·attempt 1건
 
 ### 재시도
 
-- [ ] T4.6 `BackoffPolicy` 순수 함수: 지수 백오프 (기본 30s → 2m → 10m), `notification.retry.*` 설정 바인딩 + 간격 단위 테스트
-- [ ] T4.7 `ResultRecorder` 확장: 성공 → SENT / Transient & attempt < max → `scheduleRetry` / Transient & attempt ≥ max 또는 Permanent → FAILED + `last_error`(1000자 절단)
-- [ ] T4.8 attempt 기록: 모든 시도를 `notification_attempts`에 TX2와 동일 트랜잭션으로 기록
-- [ ] T4.9 `GET /api/notifications/{id}` 응답에 시도 이력 포함 (FR-2 완성)
+- [x] T4.6 `BackoffPolicy` 순수 함수: `notification.retry.backoff`(기본 30s/2m/10m) 기반, 시도 번호→대기 시간(목록 초과 시 마지막 값 고정). `NotificationProperties.Retry`(maxAttempts, backoff) 바인딩, `NotificationInserter`가 설정값 maxAttempts 사용. 단위 테스트 2건 (T4.15 포함)
+- [x] T4.7 `NotificationResultRecorder` 확장: recordSuccess→SENT / recordFailure(retryable & attempt<max→scheduleRetry(백오프) / 그 외→markFailed). 워커가 Transient/Permanent 예외를 잡아 분기
+- [x] T4.8 attempt 기록: `NotificationAttemptRepository` + 매 시도를 성공/실패 이력으로 TX2와 같은 트랜잭션에 기록 (startedAt=processing_started_at, attemptNo, error)
+- [x] T4.9 `GET /api/notifications/{id}` 응답에 `attempts` 배열 포함 (attemptNo/success/started·finishedAt/errorMessage). `NotificationDetail`(notification+attempts)로 조회, 테스트로 재시도 3건 이력 확인 (FR-2 완성)
 
 ### 검증
 
-- [ ] T4.10 테스트 프로파일 백오프 축소 (100ms 단위)
-- [ ] T4.11 통합 테스트: 2회 실패 → 3회차 성공 → SENT + attempts 3건(실패 2, 성공 1)
-- [ ] T4.12 통합 테스트: max 연속 Transient 실패 → FAILED + last_error + 전체 이력
-- [ ] T4.13 통합 테스트: Permanent 실패 → 재시도 없이 즉시 FAILED
-- [ ] T4.14 통합 테스트: 탈퇴 수신자(`withdrawn-*`) → 발송기 미호출·FAILED + `RECIPIENT_GONE` / 미존재 수신자(`ghost-*`) → 발송기 미호출·FAILED + `RECIPIENT_NOT_FOUND` + 경고 로그
-- [ ] T4.15 단위 테스트: `next_attempt_at` 이 백오프 정책대로 설정
-- [ ] T4.16 테스트: 설정 변경(횟수/간격)이 동작에 반영됨
-- [ ] T4.17 ⛳ 전체 테스트 통과 + **커밋** (`feat: 발송 실패 재시도·최종 실패·수신 가능 검증`)
+- [x] T4.10 테스트 백오프 축소: `@TestPropertySource("notification.retry.backoff=50ms")`로 재시도가 짧은 간격에 일어나게 하여 Awaitility로 결정적 검증
+- [x] T4.11 통합 테스트: fail-2-times → 3회차 성공 SENT + attempts 3건(실패 2, 성공 1)
+- [x] T4.12 통합 테스트: max 연속 Transient 실패 → FAILED + last_error + 이력 3건
+- [x] T4.13 통합 테스트: Permanent 실패 → 재시도 없이 즉시 FAILED(1시도)
+- [x] T4.14 통합 테스트: `withdrawn-*` → FAILED + `RECIPIENT_GONE`(1시도) / `ghost-*` → FAILED + `RECIPIENT_NOT_FOUND` (발송 없이 최종 실패)
+- [x] T4.15 단위 테스트: 백오프 시도 번호별 대기 시간·목록 초과 고정 (BackoffPolicyTest, T4.6에 포함)
+- [x] T4.16 테스트: `max-attempts=2` 오버라이드 시 2회 시도 후 FAILED (설정 변경이 동작에 반영됨)
+- [x] T4.17 ⛳ 전체 테스트 통과(63건) + **커밋**
 
 ---
 

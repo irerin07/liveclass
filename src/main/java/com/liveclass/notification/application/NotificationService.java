@@ -1,6 +1,7 @@
 package com.liveclass.notification.application;
 
 import com.liveclass.notification.domain.Notification;
+import com.liveclass.notification.infra.persistence.NotificationAttemptRepository;
 import com.liveclass.notification.infra.persistence.NotificationRepository;
 import java.util.Objects;
 import java.util.Optional;
@@ -14,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class NotificationService {
 
     private final NotificationRepository repository;
+    private final NotificationAttemptRepository attemptRepository;
     private final IdempotencyKeyGenerator keyGenerator;
     private final NotificationInserter inserter;
 
@@ -70,8 +72,10 @@ public class NotificationService {
     }
 
     @Transactional(readOnly = true)
-    public Notification get(Long id) {
-        return repository.findById(id)
+    public NotificationDetail getDetail(Long id) {
+        Notification notification = repository.findById(id)
                 .orElseThrow(() -> new NotificationNotFoundException(id));
+        return new NotificationDetail(notification,
+                attemptRepository.findByNotificationIdOrderByAttemptNo(id));
     }
 }
