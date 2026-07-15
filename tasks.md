@@ -120,7 +120,7 @@
 - [x] T4.6 `BackoffPolicy` 순수 함수: `notification.retry.backoff`(기본 30s/2m/10m) 기반, 시도 번호→대기 시간(목록 초과 시 마지막 값 고정). `NotificationProperties.Retry`(maxAttempts, backoff) 바인딩, `NotificationInserter`가 설정값 maxAttempts 사용. 단위 테스트 2건 (T4.15 포함)
 - [x] T4.7 `NotificationResultRecorder` 확장: recordSuccess→SENT / recordFailure(retryable & attempt<max→scheduleRetry(백오프) / 그 외→markFailed). 워커가 Transient/Permanent 예외를 잡아 분기
 - [x] T4.8 attempt 기록: `NotificationAttemptRepository` + 매 시도를 성공/실패 이력으로 TX2와 같은 트랜잭션에 기록 (startedAt=processing_started_at, attemptNo, error)
-- [ ] T4.9 `GET /api/notifications/{id}` 응답에 시도 이력 포함 (FR-2 완성)
+- [x] T4.9 `GET /api/notifications/{id}` 응답에 `attempts` 배열 포함 (attemptNo/success/started·finishedAt/errorMessage). `NotificationDetail`(notification+attempts)로 조회, 테스트로 재시도 3건 이력 확인 (FR-2 완성)
 
 ### 검증
 

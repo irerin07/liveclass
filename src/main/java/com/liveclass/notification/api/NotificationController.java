@@ -34,6 +34,6 @@ public class NotificationController {
 
     @GetMapping("/{id}")
     public NotificationResponse get(@PathVariable Long id) {
-        return NotificationResponse.from(notificationService.get(id));
+        return NotificationResponse.from(notificationService.getDetail(id));
     }
 }
