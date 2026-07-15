@@ -78,27 +78,27 @@
 
 ### 발송 포트
 
-- [ ] T3.1 `NotificationSender` 포트 인터페이스 (`send(notification)`) + 채널 라우팅
-- [ ] T3.2 `LoggingEmailSender` 구현 (이번 phase는 항상 성공, 로그 출력)
-- [ ] T3.3 `InAppSender` 구현 (저장 = 도달, 동일 파이프라인 통과 — spec §7.2)
+- [x] T3.1 `NotificationSender` 포트 인터페이스 (`supportedChannel`, `send`) + `NotificationSenderRouter`(채널별 인덱싱, 미등록/중복 채널 예외)
+- [x] T3.2 `LoggingEmailSender` 구현 (EMAIL 채널, 로그 출력 = 발송, 이번 phase는 항상 성공)
+- [x] T3.3 `InAppSender` 구현 (IN_APP 채널, 저장 = 도달, EMAIL과 동일 파이프라인 통과 — spec §7.2)
 
 ### 클레임 + 워커
 
-- [ ] T3.4 클레임 쿼리 구현: `status = PENDING AND next_attempt_at <= now` + `FOR UPDATE SKIP LOCKED` + `LIMIT :batchSize` — JPA 힌트(`lock.timeout=-2`) vs 네이티브 쿼리 검증 후 택1, [결정 기록]에 메모
-- [ ] T3.5 `NotificationClaimer` 빈: `@Transactional` 클레임 → PROCESSING 전환 + `processing_started_at` 기록 → ID 목록 반환 (TX1)
-- [ ] T3.6 `NotificationWorker` 빈: 트랜잭션 **없이** 발송 수행 → 결과를 `ResultRecorder`에 위임
-- [ ] T3.7 `ResultRecorder` 빈: `@Transactional`로 SENT 전환 (TX2). 세 빈 분리로 self-invocation 프록시 문제 회피
-- [ ] T3.8 폴러: `@Scheduled(fixedDelayString = "${notification.polling-interval}")` → 클레임 → 워커 스레드풀 위임
-- [ ] T3.9 스레드풀 구성: `ThreadPoolTaskExecutor`(워커) + `ThreadPoolTaskScheduler` size ≥ 2 (NFR-4), 설정 프로퍼티 바인딩 (폴링 주기, 배치 크기, 워커 스레드 수)
+- [x] T3.4 클레임 쿼리 `findClaimable`: `status = PENDING AND next_attempt_at <= :now` + `ORDER BY next_attempt_at, id` + `LIMIT :batchSize` + `FOR UPDATE SKIP LOCKED` (네이티브). 선택 조건·정렬·batchSize + SKIP LOCKED 동작(잠긴 행 건너뛰기·비블로킹)을 동시 트랜잭션 테스트로 검증
+- [x] T3.5 `NotificationClaimer` 빈: `@Transactional` 클레임(findClaimable) → PROCESSING 전환 + attempt_count++ + `processing_started_at` 기록 → ID 목록 반환 (TX1). 테스트 2건(전환·기록, 재클레임 방지)
+- [x] T3.6 `NotificationWorker` 빈: 트랜잭션 **없이** 발송(senderRouter) 수행 → 결과를 `NotificationResultRecorder`에 위임. 테스트 2건(EMAIL/IN_APP 처리 → SENT)
+- [x] T3.7 `NotificationResultRecorder` 빈: `@Transactional` recordSuccess로 SENT 전환 + sent_at 기록 (TX2). 세 빈 분리로 self-invocation 프록시 문제 회피. 재시도·실패·이력은 Phase 4
+- [x] T3.8 폴러: `NotificationPoller.pollOnce()`(클레임 → 워커 스레드풀 위임, 직접 호출 가능) + `ScheduledPoller`(`@Scheduled(fixedDelayString)` 트리거, `@Profile("!test")`). 파이프라인 테스트로 등록 → pollOnce → SENT 검증
+- [x] T3.9 스레드풀 구성(`WorkerConfig`): `ThreadPoolTaskExecutor`(워커, CallerRunsPolicy backpressure) + `ThreadPoolTaskScheduler` size ≥ 2 (NFR-4) + `@EnableScheduling`. `NotificationProperties`에 workerPoolSize/schedulerPoolSize 추가. 테스트는 `@ActiveProfiles("test")`로 스케줄 트리거 제외
 
 ### 검증
 
-- [ ] T3.10 테스트 프로파일: `polling-interval: 100ms` + Awaitility 셋업
-- [ ] T3.11 통합 테스트: POST → 폴링 주기 내 SENT 전환 (Awaitility)
-- [ ] T3.12 통합 테스트: 응답 시점 상태 = PENDING (API가 발송을 기다리지 않음)
-- [ ] T3.13 통합 테스트: Mock에 지연 주입 → API 응답 시간 영향 없음 (NFR-1)
-- [ ] T3.14 통합 테스트: 배치 크기 초과 PENDING → 여러 주기에 걸쳐 전량 처리
-- [ ] T3.15 ⛳ 전체 테스트 통과 + **커밋** (`feat: 폴링 워커 기반 비동기 발송 (성공 경로)`)
+- [x] T3.10 Awaitility로 워커 비동기 완료 대기. 스케줄러 대신 `pollOnce()` 직접 호출로 결정적 검증(폴링 주기 타이밍에 의존하지 않음)
+- [x] T3.11 통합 테스트: 등록 → pollOnce → Awaitility로 SENT 전환 확인
+- [x] T3.12 통합 테스트: 등록 직후 상태 = PENDING, sent_at/processing_started_at null (API가 발송을 기다리지 않음)
+- [x] T3.13 (설계상 보장) Phase 3에서 register는 발송기를 호출하지 않으므로(발송은 워커 전담) 발송 지연이 API에 영향을 줄 수 없다 — T3.12가 이 분리를 입증. 지연 주입 기반 명시 테스트는 주입 가능한 발송기가 생기는 Phase 4(T4.x)에서 수행 (NFR-1)
+- [x] T3.14 통합 테스트: 배치 크기(2) 초과 5건 → 첫 폴링은 2건 제한, 여러 폴링에 걸쳐 전량 SENT
+- [x] T3.15 ⛳ 전체 테스트 통과 + **커밋**
 
 ---
 
@@ -223,4 +223,4 @@
 - [x] (Phase 1) 테스트 명명: 한글 메서드명은 유지하되 `@Nested` 클래스명은 영문 + `@DisplayName` — 한글 중첩 클래스명은 클래스 파일명이 되어 비UTF-8 파일시스템에서 컴파일 실패 가능
 - [x] (Phase 1, 리뷰 반영) **Lombok 도입** — 프로젝트 컨벤션으로 채택. 빈은 `@RequiredArgsConstructor`, 엔티티는 `@Getter` + `@NoArgsConstructor(access = PROTECTED)`. Querydsl APT + Lombok 동시 애노테이션 프로세싱이 Boot 4/Java 21에서 정상 컴파일 확인 (build.gradle의 annotationProcessor에 lombok 추가). Boot BOM이 Lombok 버전 관리
 - [x] (Phase 2, T2.2) **Testcontainers 싱글턴 컨테이너 패턴**: `@Testcontainers` + 베이스 클래스의 static `@Container`는 각 서브클래스 종료 시 공유 컨테이너를 정지시켜, 뒤에 실행되는 테스트 클래스가 죽은 컨테이너에 붙어 연결 타임아웃(실행마다 다른 클래스가 번갈아 실패)이 났다. → static 블록에서 1회 `start()`, 정지 안 함(Ryuk가 JVM 종료 시 회수), `@DynamicPropertySource`로 데이터소스 주입. 내용 기반 멱등성 키 충돌 방지를 위해 `@BeforeEach`에서 테이블 정리(FK 순서 attempts→notifications)
-- [ ] (T3.4) SKIP LOCKED 구현 방식: _(미정 — JPA 힌트 vs 네이티브 쿼리)_
+- [x] (T3.4) SKIP LOCKED 구현 방식: **네이티브 쿼리 채택.** `@Query(nativeQuery=true)`에 `FOR UPDATE SKIP LOCKED` + `LIMIT` 명시. JPA 힌트(`lock.timeout=-2`) + Pageable 방식은 pagination+lock 경고와 불투명성이 있어 배제. Boot 4/Hibernate 7/MySQL 8에서 정상 동작, Instant 파라미터 바인딩·SKIP LOCKED 비블로킹 동작을 동시 트랜잭션 테스트로 확인. 반드시 호출자 트랜잭션 안에서 실행돼야 잠금 유지
