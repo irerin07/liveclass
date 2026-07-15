@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS notifications
+CREATE TABLE notifications
 (
     id                     BIGINT AUTO_INCREMENT PRIMARY KEY,
     idempotency_key        VARCHAR(200)  NOT NULL,
@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS notifications
     INDEX idx_notifications_receiver_created (receiver_id, created_at)
 );
 
-CREATE TABLE IF NOT EXISTS notification_attempts
+CREATE TABLE notification_attempts
 (
     id               BIGINT AUTO_INCREMENT PRIMARY KEY,
     notification_id  BIGINT        NOT NULL,

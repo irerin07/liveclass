@@ -23,7 +23,13 @@ import org.testcontainers.mysql.MySQLContainer;
  * 호환성이 검증된 것이다. 전용 설정(SmokeConfig)으로 애플리케이션
  * 컨텍스트와 완전히 분리해 실행한다.
  */
-@DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
+// ddl-auto=create(드롭 없이 생성): 컨테이너는 테스트 후 폐기되므로 종료 시 DROP이 불필요하고,
+// create-drop이면 이미 정지된 Testcontainers에 DROP을 시도해 CommunicationsException 로그가 난다.
+// Flyway는 이 스모크(자체 컨테이너, querydsl_smoke만 필요)에는 불필요하므로 비활성화한다.
+@DataJpaTest(properties = {
+        "spring.jpa.hibernate.ddl-auto=create",
+        "spring.flyway.enabled=false"
+})
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Testcontainers
 class QuerydslSmokeTest {

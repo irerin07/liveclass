@@ -148,6 +148,8 @@
 - [x] H6 payload 크기 상한 64KB: `RegisterNotificationRequest`에 `@AssertTrue` 검증 → 초과 시 400. 메모리·저장·직렬화 비용 보호. 테스트 1건(70KB → 400)
 - [x] H7 멱등성 payload 검증: **명시적 `Idempotency-Key` 재사용 시에만** payload를 구조적 JSON 동등성(`ObjectMapper.readTree().equals()`, 필드 순서 무시)으로 비교 → 다르면 422. 내용 기반 키는 §7.1대로 payload 무시. 테스트 3건(다른 payload→422, 필드 순서만 다름→재생)
 - [x] H8 ⛳ 전체 테스트 통과(74건) + **커밋/푸시**
+- [x] H9 (follow-up 리뷰) **Flyway 마이그레이션 도입**: `CREATE TABLE IF NOT EXISTS` + `spring.sql.init`는 기존 볼륨에 스키마 변경(H5 UNIQUE 등)이 반영 안 됨 → `db/migration/V1__init_schema.sql` + `spring-boot-flyway`(Boot 4는 자동설정이 별도 모듈)로 전환. `ddl-auto=validate` 유지. 이후 스키마 변경은 V2+로 기존 환경에도 안전 반영
+- [x] H10 (follow-up 리뷰) 테스트 종료 소음 제거: QuerydslSmokeTest `create-drop`→`create`(정지된 컨테이너에 DROP 시도로 인한 CommunicationsException 제거), 자체 컨테이너라 Flyway 비활성화
 
 ---
 
