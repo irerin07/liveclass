@@ -1,6 +1,8 @@
 package com.liveclass.notification.infra.worker;
 
 import com.liveclass.notification.application.sender.NotificationSenderRouter;
+import com.liveclass.notification.application.sender.PermanentSendException;
+import com.liveclass.notification.application.sender.TransientSendException;
 import com.liveclass.notification.domain.Notification;
 import com.liveclass.notification.infra.persistence.NotificationRepository;
 import lombok.RequiredArgsConstructor;
@@ -13,8 +15,8 @@ import org.springframework.stereotype.Component;
  * <p>발송(외부 호출)을 트랜잭션에 넣지 않는 이유: 외부 지연이 DB 커넥션·락 점유로
  * 전파되는 것을 막고, 발송 성공 후 롤백에 의한 상태 불일치를 피하기 위함이다.
  *
- * <p>이번 단계(Phase 3)는 성공 경로만 처리한다. 발송 실패 시의 재시도·최종 실패 분기는
- * Phase 4에서 추가된다.
+ * <p>발송 실패는 종류에 따라 분기한다: {@link TransientSendException}은 재시도 대상,
+ * {@link PermanentSendException}은 즉시 최종 실패 (spec §7.3).
  */
 @Component
 @RequiredArgsConstructor
@@ -29,7 +31,15 @@ public class NotificationWorker {
                 .orElseThrow(() -> new IllegalStateException(
                         "처리 대상 알림을 찾을 수 없음: id=" + notificationId));
 
-        senderRouter.send(notification);
+        try {
+            senderRouter.send(notification);
+        } catch (TransientSendException e) {
+            resultRecorder.recordFailure(notificationId, true, e.getMessage());
+            return;
+        } catch (PermanentSendException e) {
+            resultRecorder.recordFailure(notificationId, false, e.getMessage());
+            return;
+        }
         resultRecorder.recordSuccess(notificationId);
     }
 }

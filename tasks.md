@@ -118,16 +118,16 @@
 ### 재시도
 
 - [x] T4.6 `BackoffPolicy` 순수 함수: `notification.retry.backoff`(기본 30s/2m/10m) 기반, 시도 번호→대기 시간(목록 초과 시 마지막 값 고정). `NotificationProperties.Retry`(maxAttempts, backoff) 바인딩, `NotificationInserter`가 설정값 maxAttempts 사용. 단위 테스트 2건 (T4.15 포함)
-- [ ] T4.7 `ResultRecorder` 확장: 성공 → SENT / Transient & attempt < max → `scheduleRetry` / Transient & attempt ≥ max 또는 Permanent → FAILED + `last_error`(1000자 절단)
-- [ ] T4.8 attempt 기록: 모든 시도를 `notification_attempts`에 TX2와 동일 트랜잭션으로 기록
+- [x] T4.7 `NotificationResultRecorder` 확장: recordSuccess→SENT / recordFailure(retryable & attempt<max→scheduleRetry(백오프) / 그 외→markFailed). 워커가 Transient/Permanent 예외를 잡아 분기
+- [x] T4.8 attempt 기록: `NotificationAttemptRepository` + 매 시도를 성공/실패 이력으로 TX2와 같은 트랜잭션에 기록 (startedAt=processing_started_at, attemptNo, error)
 - [ ] T4.9 `GET /api/notifications/{id}` 응답에 시도 이력 포함 (FR-2 완성)
 
 ### 검증
 
-- [ ] T4.10 테스트 프로파일 백오프 축소 (100ms 단위)
-- [ ] T4.11 통합 테스트: 2회 실패 → 3회차 성공 → SENT + attempts 3건(실패 2, 성공 1)
-- [ ] T4.12 통합 테스트: max 연속 Transient 실패 → FAILED + last_error + 전체 이력
-- [ ] T4.13 통합 테스트: Permanent 실패 → 재시도 없이 즉시 FAILED
+- [x] T4.10 테스트 백오프 축소: `@TestPropertySource("notification.retry.backoff=50ms")`로 재시도가 짧은 간격에 일어나게 하여 Awaitility로 결정적 검증
+- [x] T4.11 통합 테스트: fail-2-times → 3회차 성공 SENT + attempts 3건(실패 2, 성공 1)
+- [x] T4.12 통합 테스트: max 연속 Transient 실패 → FAILED + last_error + 이력 3건
+- [x] T4.13 통합 테스트: Permanent 실패 → 재시도 없이 즉시 FAILED(1시도)
 - [ ] T4.14 통합 테스트: 탈퇴 수신자(`withdrawn-*`) → 발송기 미호출·FAILED + `RECIPIENT_GONE` / 미존재 수신자(`ghost-*`) → 발송기 미호출·FAILED + `RECIPIENT_NOT_FOUND` + 경고 로그
 - [x] T4.15 단위 테스트: 백오프 시도 번호별 대기 시간·목록 초과 고정 (BackoffPolicyTest, T4.6에 포함)
 - [ ] T4.16 테스트: 설정 변경(횟수/간격)이 동작에 반영됨
