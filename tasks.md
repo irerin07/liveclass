@@ -108,7 +108,7 @@
 
 - [x] T4.1 `TransientSendException`(재시도 대상) / `PermanentSendException`(즉시 최종 실패) 정의 (spec §7.3)
 - [x] T4.2 `LoggingEmailSender` 실패 주입: `fail-permanent-*` → Permanent, `fail-<n>-times-*` → n회차까지 Transient(attemptCount 기반) 후 성공. 단위 테스트 4건
-- [ ] T4.3 `Clock` 빈 등록 및 시간 사용 지점 전부 주입으로 전환 (엔티티 전이 메서드 포함)
+- [x] T4.3 `Clock` 빈(ClockConfig, Phase 1부터) — 프로덕션 코드에 `Instant.now()`/`LocalDateTime.now()` 직접 호출 없음(grep 검증). 엔티티 전이 메서드·claimer·recorder 모두 주입 Clock 경유
 
 ### 수신 가능 검증 (spec §7.7)
 
