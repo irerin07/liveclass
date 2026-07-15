@@ -23,21 +23,22 @@ class NotificationResultRecorderTest extends IntegrationTestSupport {
     @Autowired
     NotificationRepository repository;
 
+    @Autowired
+    NotificationClaimer claimer;
+
     private Notification saveProcessing(String key) {
         Clock past = Clock.fixed(Instant.now().minus(Duration.ofMinutes(1)), ZoneOffset.UTC);
         Notification saved = repository.save(Notification.pending(key, "student-1",
                 NotificationType.PAYMENT_CONFIRMED, Channel.EMAIL, "ENROLLMENT", key, null, 3, past));
-        // 클레임된 상태(PROCESSING)로 만든다.
-        jdbcTemplate.update("UPDATE notifications SET status = 'PROCESSING', processing_started_at = ? "
-                + "WHERE id = ?", java.sql.Timestamp.from(past.instant()), saved.getId());
         return saved;
     }
 
     @Test
     void 성공_기록하면_SENT로_전환되고_발송시각이_기록된다() {
         Notification processing = saveProcessing("a");
+        ClaimedNotification claim = claimer.claimBatch().getFirst();
 
-        recorder.recordSuccess(processing.getId());
+        recorder.recordSuccess(claim);
 
         Notification reloaded = repository.findById(processing.getId()).orElseThrow();
         assertThat(reloaded.getStatus()).isEqualTo(NotificationStatus.SENT);

@@ -34,33 +34,40 @@ public class NotificationWorker {
     private final NotificationSenderRouter senderRouter;
     private final NotificationResultRecorder resultRecorder;
 
-    public void process(Long notificationId) {
+    public void process(ClaimedNotification claim) {
         try {
-            processInternal(notificationId);
+            processInternal(claim);
         } catch (Exception unexpected) {
             // 알 수 없는 오류(findById·recipient 조회·sender 내부 등)는 retryable로 기록해
             // 태스크 종료로 인한 영구 PROCESSING 고착을 막는다.
-            log.error("알림 처리 중 예상 밖 오류 — retryable로 기록 id={}", notificationId, unexpected);
-            recordUnexpectedFailure(notificationId, unexpected);
+            log.error("알림 처리 중 예상 밖 오류 — retryable로 기록 id={}", claim.id(), unexpected);
+            recordUnexpectedFailure(claim, unexpected);
         }
     }
 
-    private void processInternal(Long notificationId) {
-        Notification notification = repository.findById(notificationId)
+    private void processInternal(ClaimedNotification claim) {
+        Notification notification = repository.findById(claim.id())
                 .orElseThrow(() -> new IllegalStateException(
-                        "처리 대상 알림을 찾을 수 없음: id=" + notificationId));
+                        "처리 대상 알림을 찾을 수 없음: id=" + claim.id()));
+
+        if (notification.getStatus() != com.liveclass.notification.domain.NotificationStatus.PROCESSING
+                || notification.getAttemptCount() != claim.attemptNo()
+                || !java.util.Objects.equals(notification.getClaimToken(), claim.claimToken())) {
+            log.info("발송 전 stale 클레임 폐기 id={} attempt={}", claim.id(), claim.attemptNo());
+            return;
+        }
 
         RecipientStatus recipientStatus =
                 recipientStatusPort.check(notification.getReceiverId(), notification.getChannel());
         if (recipientStatus == RecipientStatus.WITHDRAWN) {
-            resultRecorder.recordFailure(notificationId, false,
+            resultRecorder.recordFailure(claim, false,
                     "RECIPIENT_GONE: 탈퇴 수신자 receiver=" + notification.getReceiverId());
             return;
         }
         if (recipientStatus == RecipientStatus.NOT_FOUND) {
             log.warn("수신자 미존재 — 데이터 이상 가능 id={} receiver={}",
-                    notificationId, notification.getReceiverId());
-            resultRecorder.recordFailure(notificationId, false,
+                    claim.id(), notification.getReceiverId());
+            resultRecorder.recordFailure(claim, false,
                     "RECIPIENT_NOT_FOUND: 미존재 수신자 receiver=" + notification.getReceiverId());
             return;
         }
@@ -68,22 +75,22 @@ public class NotificationWorker {
         try {
             senderRouter.send(notification);
         } catch (TransientSendException e) {
-            resultRecorder.recordFailure(notificationId, true, e.getMessage());
+            resultRecorder.recordFailure(claim, true, e.getMessage());
             return;
         } catch (PermanentSendException e) {
-            resultRecorder.recordFailure(notificationId, false, e.getMessage());
+            resultRecorder.recordFailure(claim, false, e.getMessage());
             return;
         }
-        resultRecorder.recordSuccess(notificationId);
+        resultRecorder.recordSuccess(claim);
     }
 
-    private void recordUnexpectedFailure(Long notificationId, Exception unexpected) {
+    private void recordUnexpectedFailure(ClaimedNotification claim, Exception unexpected) {
         try {
-            resultRecorder.recordFailure(notificationId, true,
+            resultRecorder.recordFailure(claim, true,
                     "UNKNOWN: " + unexpected.getClass().getSimpleName() + ": " + unexpected.getMessage());
         } catch (Exception recordingFailure) {
             // 결과 기록마저 실패(예: DB 장애)하면 상태를 바꿀 수 없다 — 스턱 회수(Phase 5)가 최종 안전망.
-            log.error("결과 기록마저 실패 id={} — 스턱 회수 대상으로 남김", notificationId, recordingFailure);
+            log.error("결과 기록마저 실패 id={} — 스턱 회수 대상으로 남김", claim.id(), recordingFailure);
         }
     }
 }

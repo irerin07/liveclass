@@ -72,6 +72,9 @@ public class Notification {
     @Column(name = "processing_started_at")
     private Instant processingStartedAt;
 
+    @Column(name = "claim_token", length = 36)
+    private String claimToken;
+
     @Column(name = "last_error", length = 1000)
     private String lastError;
 
@@ -123,6 +126,7 @@ public class Notification {
         this.status = NotificationStatus.PROCESSING;
         this.attemptCount++;
         this.processingStartedAt = now;
+        this.claimToken = java.util.UUID.randomUUID().toString();
         this.updatedAt = now;
     }
 
@@ -135,6 +139,7 @@ public class Notification {
         this.status = NotificationStatus.SENT;
         this.sentAt = now;
         this.processingStartedAt = null;
+        this.claimToken = null;
         this.updatedAt = now;
     }
 
@@ -154,6 +159,7 @@ public class Notification {
         this.nextAttemptAt = nextAttemptAt;
         this.lastError = truncate(error);
         this.processingStartedAt = null;
+        this.claimToken = null;
         this.updatedAt = now;
     }
 
@@ -166,6 +172,19 @@ public class Notification {
         this.status = NotificationStatus.FAILED;
         this.lastError = truncate(error);
         this.processingStartedAt = null;
+        this.claimToken = null;
+        this.updatedAt = now;
+    }
+
+    /** PROCESSING → PENDING. 사망한 워커의 클레임을 회수하되 시도 횟수는 유지한다. */
+    public void recoverStuck(String reason, Clock clock) {
+        require(status == NotificationStatus.PROCESSING, "recoverStuck");
+        Instant now = clock.instant();
+        this.status = NotificationStatus.PENDING;
+        this.nextAttemptAt = now;
+        this.lastError = truncate(reason);
+        this.processingStartedAt = null;
+        this.claimToken = null;
         this.updatedAt = now;
     }
 

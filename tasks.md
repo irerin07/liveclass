@@ -157,17 +157,19 @@
 
 ### 스턱 회수
 
-- [ ] T5.1 상태 전이를 조건부 UPDATE(`WHERE status = 'PROCESSING'`)로 보강 — 회수 ↔ 정상 완료 경쟁 시 이중 전이 방지 (plan.md Phase 5 기술 메모)
-- [ ] T5.2 스턱 회수 스케줄러: `PROCESSING AND processing_started_at < now - threshold` → SKIP LOCKED로 PENDING 복귀 (attempt_count 유지), 회수 로그/이력 기록
-- [ ] T5.3 스턱 임계(`notification.stuck-threshold`, 기본 5분) 설정 바인딩
+- [x] T5.1 `claim_token` UUID + `ClaimedNotification` 도입. 결과 조건부 UPDATE가 `(id, PROCESSING, attemptNo, claimToken)`에 모두 일치할 때만 상태·attempt 이력을 기록하고, 회수 후 도착한 stale 결과는 폐기
+- [x] T5.2 스턱 회수 스케줄러: `PROCESSING AND processing_started_at < now - threshold` → `FOR UPDATE SKIP LOCKED`로 PENDING 복귀(attempt_count 유지), 실패 attempt와 회수 로그 기록
+- [x] T5.3 스턱 임계(`notification.stuck-threshold`, 기본 5분)와 회수 주기(`stuck-recovery-interval`, 기본 30초) 설정·양수 검증
+- [x] T5.3a executor backlog 오판 방지: semaphore로 실제 워커 수만큼만 클레임하고 executor queue를 0으로 설정. 실행 전 대기 작업을 PROCESSING으로 만들지 않음
 
 ### 검증
 
-- [ ] T5.4 통합 테스트: `processing_started_at`을 과거로 직접 UPDATE → 회수 → 재처리 → SENT
-- [ ] T5.5 통합 테스트: 회수와 정상 완료 경쟁 → 상태 이중 전이 없음 (조건부 UPDATE 검증)
-- [ ] T5.6 재시작 내구성 테스트: PENDING/스턱 PROCESSING 데이터를 DB에 심고 컨텍스트 기동 → 전량 SENT
-- [ ] T5.7 다중 인스턴스 테스트: PENDING 100건 + 클레임 주체 4개 동시 실행 → Mock sender의 `ConcurrentHashMap` 수집 결과 중복 0·누락 0
-- [ ] T5.8 ⛳ 전체 테스트 통과 + **커밋** (`feat: 스턱 회수·재시작 내구성·다중 인스턴스 대응`)
+- [x] T5.4 통합 테스트: `processing_started_at`을 과거로 직접 UPDATE → 회수 → 재처리 → SENT
+- [x] T5.5 통합 테스트: 회수 후 새 클레임과 이전 워커 결과 경쟁 → stale 결과 UPDATE 0건, 새 상태/토큰 유지, attempt 미기록
+- [x] T5.6 재시작 내구성 테스트: PENDING/스턱 PROCESSING 데이터를 DB에 심고 동일 DB를 보는 새 ApplicationContext 기동 → 회수 후 전량 SENT
+- [x] T5.7 다중 인스턴스 상당 테스트: PENDING 100건 + 클레임 주체 4개 동시 실행 → 전량 SENT, attempt 100건, 중복 0·누락 0. 큐 클레임/회수 TX는 `READ_COMMITTED`로 설정해 MySQL REPEATABLE_READ의 범위 잠금 deadlock 완화
+- [x] T5.7a 워커 4개를 latch로 점유 → 첫 poll 4건만 PROCESSING, 추가 poll 0건, 나머지는 PENDING 유지. 워커가 막힌 동안에도 POST 202 확인(NFR-1)
+- [x] T5.8 ⛳ 전체 테스트 통과(81건). 멱등성 유니크 인덱스 경쟁에서 MySQL deadlock victim이 발생하는 경로도 최대 3회 독립 트랜잭션 재시도로 보강
 
 ---
 

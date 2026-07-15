@@ -35,14 +35,16 @@ class NotificationClaimerTest extends IntegrationTestSupport {
         Notification a = savePendingInPast("a");
         Notification b = savePendingInPast("b");
 
-        List<Long> claimed = claimer.claimBatch();
+        List<ClaimedNotification> claimed = claimer.claimBatch();
 
-        assertThat(claimed).containsExactlyInAnyOrder(a.getId(), b.getId());
-        for (Long id : claimed) {
-            Notification reloaded = repository.findById(id).orElseThrow();
+        assertThat(claimed).extracting(ClaimedNotification::id)
+                .containsExactlyInAnyOrder(a.getId(), b.getId());
+        for (ClaimedNotification claim : claimed) {
+            Notification reloaded = repository.findById(claim.id()).orElseThrow();
             assertThat(reloaded.getStatus()).isEqualTo(NotificationStatus.PROCESSING);
             assertThat(reloaded.getAttemptCount()).isEqualTo(1);
             assertThat(reloaded.getProcessingStartedAt()).isNotNull();
+            assertThat(reloaded.getClaimToken()).isEqualTo(claim.claimToken()).isNotBlank();
         }
     }
 

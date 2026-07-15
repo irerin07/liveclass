@@ -31,3 +31,5 @@ management:
 notification:
   polling-interval: 1s
   batch-size: 50
+  stuck-threshold: 5m
+  stuck-recovery-interval: 30s

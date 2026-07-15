@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.repository.query.Param;
 
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
@@ -30,4 +31,51 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
             FOR UPDATE SKIP LOCKED
             """, nativeQuery = true)
     List<Notification> findClaimable(@Param("now") Instant now, @Param("batchSize") int batchSize);
+
+    @Query(value = """
+            SELECT * FROM notifications
+            WHERE status = 'PROCESSING' AND processing_started_at < :threshold
+            ORDER BY processing_started_at, id
+            LIMIT :batchSize
+            FOR UPDATE SKIP LOCKED
+            """, nativeQuery = true)
+    List<Notification> findStuck(@Param("threshold") Instant threshold,
+                                 @Param("batchSize") int batchSize);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            UPDATE Notification n
+               SET n.status = 'SENT', n.sentAt = :now, n.processingStartedAt = null,
+                   n.claimToken = null, n.updatedAt = :now
+             WHERE n.id = :id AND n.status = 'PROCESSING'
+               AND n.attemptCount = :attemptNo AND n.claimToken = :claimToken
+            """)
+    int markSentIfCurrent(@Param("id") Long id, @Param("attemptNo") int attemptNo,
+                          @Param("claimToken") String claimToken, @Param("now") Instant now);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            UPDATE Notification n
+               SET n.status = 'PENDING', n.nextAttemptAt = :nextAttemptAt,
+                   n.lastError = :error, n.processingStartedAt = null,
+                   n.claimToken = null, n.updatedAt = :now
+             WHERE n.id = :id AND n.status = 'PROCESSING'
+               AND n.attemptCount = :attemptNo AND n.claimToken = :claimToken
+            """)
+    int scheduleRetryIfCurrent(@Param("id") Long id, @Param("attemptNo") int attemptNo,
+                               @Param("claimToken") String claimToken,
+                               @Param("nextAttemptAt") Instant nextAttemptAt,
+                               @Param("error") String error, @Param("now") Instant now);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            UPDATE Notification n
+               SET n.status = 'FAILED', n.lastError = :error,
+                   n.processingStartedAt = null, n.claimToken = null, n.updatedAt = :now
+             WHERE n.id = :id AND n.status = 'PROCESSING'
+               AND n.attemptCount = :attemptNo AND n.claimToken = :claimToken
+            """)
+    int markFailedIfCurrent(@Param("id") Long id, @Param("attemptNo") int attemptNo,
+                            @Param("claimToken") String claimToken,
+                            @Param("error") String error, @Param("now") Instant now);
 }
