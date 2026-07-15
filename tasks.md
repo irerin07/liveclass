@@ -106,7 +106,7 @@
 
 ### 실패 모델
 
-- [ ] T4.1 `TransientSendException` / `PermanentSendException` 정의 (spec §7.3)
+- [x] T4.1 `TransientSendException`(재시도 대상) / `PermanentSendException`(즉시 최종 실패) 정의 (spec §7.3)
 - [ ] T4.2 `LoggingEmailSender` 실패 주입: 수신자 패턴 규칙 (`fail-2-times-*` → 2회차까지 Transient, `fail-permanent-*` → Permanent). 테스트/데모 겸용
 - [ ] T4.3 `Clock` 빈 등록 및 시간 사용 지점 전부 주입으로 전환 (엔티티 전이 메서드 포함)
 
