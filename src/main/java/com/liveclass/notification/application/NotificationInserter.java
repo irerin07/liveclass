@@ -1,5 +1,6 @@
 package com.liveclass.notification.application;
 
+import com.liveclass.notification.config.NotificationProperties;
 import com.liveclass.notification.domain.Notification;
 import com.liveclass.notification.infra.persistence.NotificationRepository;
 import java.time.Clock;
@@ -20,10 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class NotificationInserter {
 
-    /** Phase 4에서 재시도 정책 설정(notification.retry.*)으로 대체된다. */
-    private static final int DEFAULT_MAX_ATTEMPTS = 3;
-
     private final NotificationRepository repository;
+    private final NotificationProperties properties;
     private final Clock clock;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -36,7 +35,7 @@ public class NotificationInserter {
                 command.refType(),
                 command.refId(),
                 command.payload(),
-                DEFAULT_MAX_ATTEMPTS,
+                properties.retry().maxAttempts(),
                 clock
         );
         return repository.save(notification);

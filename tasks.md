@@ -117,7 +117,7 @@
 
 ### 재시도
 
-- [ ] T4.6 `BackoffPolicy` 순수 함수: 지수 백오프 (기본 30s → 2m → 10m), `notification.retry.*` 설정 바인딩 + 간격 단위 테스트
+- [x] T4.6 `BackoffPolicy` 순수 함수: `notification.retry.backoff`(기본 30s/2m/10m) 기반, 시도 번호→대기 시간(목록 초과 시 마지막 값 고정). `NotificationProperties.Retry`(maxAttempts, backoff) 바인딩, `NotificationInserter`가 설정값 maxAttempts 사용. 단위 테스트 2건 (T4.15 포함)
 - [ ] T4.7 `ResultRecorder` 확장: 성공 → SENT / Transient & attempt < max → `scheduleRetry` / Transient & attempt ≥ max 또는 Permanent → FAILED + `last_error`(1000자 절단)
 - [ ] T4.8 attempt 기록: 모든 시도를 `notification_attempts`에 TX2와 동일 트랜잭션으로 기록
 - [ ] T4.9 `GET /api/notifications/{id}` 응답에 시도 이력 포함 (FR-2 완성)
@@ -129,7 +129,7 @@
 - [ ] T4.12 통합 테스트: max 연속 Transient 실패 → FAILED + last_error + 전체 이력
 - [ ] T4.13 통합 테스트: Permanent 실패 → 재시도 없이 즉시 FAILED
 - [ ] T4.14 통합 테스트: 탈퇴 수신자(`withdrawn-*`) → 발송기 미호출·FAILED + `RECIPIENT_GONE` / 미존재 수신자(`ghost-*`) → 발송기 미호출·FAILED + `RECIPIENT_NOT_FOUND` + 경고 로그
-- [ ] T4.15 단위 테스트: `next_attempt_at` 이 백오프 정책대로 설정
+- [x] T4.15 단위 테스트: 백오프 시도 번호별 대기 시간·목록 초과 고정 (BackoffPolicyTest, T4.6에 포함)
 - [ ] T4.16 테스트: 설정 변경(횟수/간격)이 동작에 반영됨
 - [ ] T4.17 ⛳ 전체 테스트 통과 + **커밋** (`feat: 발송 실패 재시도·최종 실패·수신 가능 검증`)
 
