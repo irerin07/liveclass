@@ -135,6 +135,22 @@
 
 ---
 
+## Phase 4.5 — 리뷰 대응 하드닝 (예상 밖 상황에서 PROCESSING 고착 방지)
+
+> 코드 리뷰에서 발견된 "예외/잘못된 설정/종료 시 알림이 PROCESSING에 갇히는 경로"를
+> Phase 5(스턱 회수) 이전에 막는다.
+
+- [x] H1 워커 generic 예외 처리: 예상 밖 `RuntimeException`을 잡아 retryable 실패로 기록(`UNKNOWN` 코드), 결과 기록 자체 실패 시 로그 후 스턱 회수에 위임. `@MockitoBean`으로 수신자 조회 예외 주입 → 고착 없이 재시도 소진 후 FAILED 검증
+- [ ] H2 `LoggingEmailSender` 안전 파싱: `fail-<n>-times-*`의 n이 int 범위를 넘으면 `NumberFormatException` 대신 실패 주입 없이 성공 처리 (API 입력으로 워커가 죽지 않게)
+- [ ] H3 설정 fail-fast: `NotificationProperties`에 `@Validated` + `@Min`/`@NotEmpty`/양수 검증 (빈 backoff → 인덱스 오류, max-attempts<=0 등 잘못된 설정에서 기동 실패)
+- [ ] H4 graceful shutdown: 워커 executor `setWaitForTasksToCompleteOnShutdown(true)` + `awaitTerminationSeconds` (종료 시 큐 대기 작업 유실 완화, 강제 종료는 스턱 회수가 담당)
+- [ ] H5 `UNIQUE(notification_id, attempt_no)` 제약: 스턱 회수·늦은 결과 경쟁 시 동일 시도 번호 중복 기록 감지 (안전망)
+- [ ] H6 payload 크기 상한(예 64KB): 요청 payload 크기 제한으로 메모리·저장·직렬화 보호
+- [ ] H7 멱등성 payload 검증: **명시적 `Idempotency-Key` 재사용 시에만** payload(정규화 JSON 동등성) 비교 → 다르면 422. 내용 기반 키는 §7.1대로 payload 무시(현행)
+- [ ] H8 ⛳ 전체 테스트 통과 + **커밋/푸시**
+
+---
+
 ## Phase 5 — 운영 시나리오 (FR-8)
 
 ### 스턱 회수
