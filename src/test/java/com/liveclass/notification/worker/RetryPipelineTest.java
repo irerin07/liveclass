@@ -94,4 +94,34 @@ class RetryPipelineTest extends IntegrationTestSupport {
         assertThat(repository.findById(id).orElseThrow().getAttemptCount()).isEqualTo(1);
         assertThat(attempts(id)).hasSize(1).allMatch(a -> !a.isSuccess());
     }
+
+    @Test
+    void 탈퇴_수신자는_발송_없이_재시도_없이_RECIPIENT_GONE으로_FAILED가_된다() {
+        long id = register("withdrawn-1", "e-4");
+
+        poller.pollOnce();
+
+        await().atMost(Duration.ofSeconds(5)).untilAsserted(() ->
+                assertThat(repository.findById(id).orElseThrow().getStatus())
+                        .isEqualTo(NotificationStatus.FAILED));
+
+        Notification failed = repository.findById(id).orElseThrow();
+        assertThat(failed.getLastError()).contains("RECIPIENT_GONE");
+        assertThat(failed.getAttemptCount()).isEqualTo(1);
+        assertThat(attempts(id)).hasSize(1).allMatch(a -> !a.isSuccess());
+    }
+
+    @Test
+    void 미존재_수신자는_RECIPIENT_NOT_FOUND로_FAILED가_된다() {
+        long id = register("ghost-1", "e-5");
+
+        poller.pollOnce();
+
+        await().atMost(Duration.ofSeconds(5)).untilAsserted(() ->
+                assertThat(repository.findById(id).orElseThrow().getStatus())
+                        .isEqualTo(NotificationStatus.FAILED));
+
+        assertThat(repository.findById(id).orElseThrow().getLastError())
+                .contains("RECIPIENT_NOT_FOUND");
+    }
 }
