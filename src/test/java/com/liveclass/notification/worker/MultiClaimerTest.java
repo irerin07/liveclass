@@ -9,8 +9,8 @@ import com.liveclass.notification.domain.NotificationType;
 import com.liveclass.notification.infra.persistence.NotificationRepository;
 import com.liveclass.notification.infra.persistence.NotificationAttemptRepository;
 import com.liveclass.notification.infra.worker.ClaimedNotification;
-import com.liveclass.notification.infra.worker.NotificationClaimer;
-import com.liveclass.notification.infra.worker.NotificationWorker;
+import com.liveclass.notification.infra.worker.NotificationTransactionService;
+import com.liveclass.notification.infra.worker.NotificationWorkerService;
 import com.liveclass.notification.support.IntegrationTestSupport;
 import java.time.Clock;
 import java.time.Instant;
@@ -29,8 +29,8 @@ class MultiClaimerTest extends IntegrationTestSupport {
 
     @Autowired NotificationRepository repository;
     @Autowired NotificationAttemptRepository attemptRepository;
-    @Autowired NotificationClaimer claimer;
-    @Autowired NotificationWorker worker;
+    @Autowired NotificationTransactionService transactionService;
+    @Autowired NotificationWorkerService workerService;
 
     @Test
     void PENDING_100건을_4개_클레임_주체가_중복과_누락_없이_선점한다() throws Exception {
@@ -53,9 +53,9 @@ class MultiClaimerTest extends IntegrationTestSupport {
                     List<ClaimedNotification> all = new ArrayList<>();
                     List<ClaimedNotification> batch;
                     do {
-                        batch = claimer.claimBatch(50);
+                        batch = transactionService.claimBatch(50);
                         all.addAll(batch);
-                        batch.forEach(worker::process);
+                        batch.forEach(workerService::process);
                     } while (!batch.isEmpty());
                     return all;
                 }));

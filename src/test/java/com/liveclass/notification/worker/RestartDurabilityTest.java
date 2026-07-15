@@ -9,9 +9,8 @@ import com.liveclass.notification.domain.Notification;
 import com.liveclass.notification.domain.NotificationStatus;
 import com.liveclass.notification.domain.NotificationType;
 import com.liveclass.notification.infra.persistence.NotificationRepository;
-import com.liveclass.notification.infra.worker.NotificationClaimer;
-import com.liveclass.notification.infra.worker.NotificationPoller;
-import com.liveclass.notification.infra.worker.StuckNotificationRecoverer;
+import com.liveclass.notification.infra.worker.NotificationTransactionService;
+import com.liveclass.notification.infra.worker.NotificationWorkerService;
 import com.liveclass.notification.support.IntegrationTestSupport;
 import java.time.Clock;
 import java.time.Duration;
@@ -26,7 +25,7 @@ import org.springframework.context.ConfigurableApplicationContext;
 class RestartDurabilityTest extends IntegrationTestSupport {
 
     @Autowired NotificationRepository repository;
-    @Autowired NotificationClaimer claimer;
+    @Autowired NotificationTransactionService transactionService;
 
     @Test
     void 새_애플리케이션_컨텍스트가_DB의_PENDING과_스턱_PROCESSING을_복구한다() {
@@ -37,7 +36,7 @@ class RestartDurabilityTest extends IntegrationTestSupport {
         Notification stuck = repository.save(Notification.pending("restart-stuck", "student-2",
                 NotificationType.PAYMENT_CONFIRMED, Channel.EMAIL,
                 "ENROLLMENT", "stuck", null, 3, past));
-        claimer.claimBatch();
+        transactionService.claimBatch();
         // 두 건 모두 클레임될 수 있으므로 pending 하나는 다시 PENDING으로 복원해 두 상태를 만든다.
         jdbcTemplate.update("UPDATE notifications SET status='PENDING', attempt_count=0, "
                 + "processing_started_at=NULL, claim_token=NULL WHERE id=?", pending.getId());
@@ -53,13 +52,14 @@ class RestartDurabilityTest extends IntegrationTestSupport {
                         "--spring.datasource.password=" + MYSQL.getPassword(),
                         "--notification.stuck-threshold=1s",
                         "--notification.retry.backoff=10ms")) {
-            StuckNotificationRecoverer recoverer = restarted.getBean(StuckNotificationRecoverer.class);
-            NotificationPoller poller = restarted.getBean(NotificationPoller.class);
+            NotificationTransactionService restartedTransactions =
+                    restarted.getBean(NotificationTransactionService.class);
+            NotificationWorkerService workerService = restarted.getBean(NotificationWorkerService.class);
             NotificationRepository restartedRepository = restarted.getBean(NotificationRepository.class);
 
-            assertThat(recoverer.recoverBatch()).isEqualTo(1);
+            assertThat(restartedTransactions.recoverStuck()).isEqualTo(1);
             await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> {
-                poller.pollOnce();
+                workerService.processBatch();
                 assertThat(restartedRepository.findById(pending.getId()).orElseThrow().getStatus())
                         .isEqualTo(NotificationStatus.SENT);
                 assertThat(restartedRepository.findById(stuck.getId()).orElseThrow().getStatus())

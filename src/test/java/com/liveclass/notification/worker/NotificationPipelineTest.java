@@ -10,7 +10,7 @@ import com.liveclass.notification.domain.Notification;
 import com.liveclass.notification.domain.NotificationStatus;
 import com.liveclass.notification.domain.NotificationType;
 import com.liveclass.notification.infra.persistence.NotificationRepository;
-import com.liveclass.notification.infra.worker.NotificationPoller;
+import com.liveclass.notification.infra.worker.NotificationWorkerService;
 import com.liveclass.notification.support.IntegrationTestSupport;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -21,7 +21,7 @@ import org.springframework.test.context.TestPropertySource;
 
 /**
  * 비동기 발송 파이프라인 통합 테스트 (tasks T3.11~T3.14). 등록 → 폴링 → 워커 → SENT의
- * 전체 흐름을 실제 MySQL에서 검증한다. 스케줄러 대신 {@code pollOnce()}를 직접 호출해
+ * 전체 흐름을 실제 MySQL에서 검증한다. 스케줄러 대신 {@code processBatch()}를 직접 호출해
  * 결정적으로 테스트하고, 워커의 비동기 완료는 Awaitility로 기다린다.
  *
  * <p>배치 크기를 2로 낮춰 "배치 초과분이 여러 폴링에 걸쳐 처리되는" 경우를 재현한다.
@@ -33,7 +33,7 @@ class NotificationPipelineTest extends IntegrationTestSupport {
     NotificationService notificationService;
 
     @Autowired
-    NotificationPoller poller;
+    NotificationWorkerService workerService;
 
     @Autowired
     NotificationRepository repository;
@@ -54,7 +54,7 @@ class NotificationPipelineTest extends IntegrationTestSupport {
     void 등록된_알림은_폴링_후_발송되어_SENT가_된다() {
         long id = register("e-1", Channel.EMAIL);
 
-        int claimed = poller.pollOnce();
+        int claimed = workerService.processBatch();
 
         assertThat(claimed).isEqualTo(1);
         await().atMost(Duration.ofSeconds(5)).untilAsserted(() ->
@@ -80,11 +80,11 @@ class NotificationPipelineTest extends IntegrationTestSupport {
             ids.add(register("bulk-" + i, Channel.EMAIL));
         }
 
-        int firstClaim = poller.pollOnce();
+        int firstClaim = workerService.processBatch();
         assertThat(firstClaim).isEqualTo(2); // 한 번의 폴링은 배치 크기(2)로 제한된다
 
         await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
-            poller.pollOnce(); // 남은 PENDING을 이어서 클레임한다
+            workerService.processBatch(); // 남은 PENDING을 이어서 클레임한다
             assertThat(sentCount()).isEqualTo(5);
         });
     }

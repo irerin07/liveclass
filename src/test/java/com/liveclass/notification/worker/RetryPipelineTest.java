@@ -12,7 +12,7 @@ import com.liveclass.notification.domain.NotificationStatus;
 import com.liveclass.notification.domain.NotificationType;
 import com.liveclass.notification.infra.persistence.NotificationAttemptRepository;
 import com.liveclass.notification.infra.persistence.NotificationRepository;
-import com.liveclass.notification.infra.worker.NotificationPoller;
+import com.liveclass.notification.infra.worker.NotificationWorkerService;
 import com.liveclass.notification.support.IntegrationTestSupport;
 import java.time.Duration;
 import java.util.List;
@@ -31,7 +31,7 @@ class RetryPipelineTest extends IntegrationTestSupport {
     NotificationService notificationService;
 
     @Autowired
-    NotificationPoller poller;
+    NotificationWorkerService workerService;
 
     @Autowired
     NotificationRepository repository;
@@ -47,7 +47,7 @@ class RetryPipelineTest extends IntegrationTestSupport {
 
     private void drainUntil(long id, NotificationStatus target) {
         await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
-            poller.pollOnce();
+            workerService.processBatch();
             assertThat(repository.findById(id).orElseThrow().getStatus()).isEqualTo(target);
         });
     }
@@ -84,7 +84,7 @@ class RetryPipelineTest extends IntegrationTestSupport {
     void 영구_실패는_재시도_없이_즉시_FAILED가_된다() {
         long id = register("fail-permanent-c", "e-3");
 
-        int claimed = poller.pollOnce();
+        int claimed = workerService.processBatch();
         assertThat(claimed).isEqualTo(1);
 
         await().atMost(Duration.ofSeconds(5)).untilAsserted(() ->
@@ -99,7 +99,7 @@ class RetryPipelineTest extends IntegrationTestSupport {
     void 탈퇴_수신자는_발송_없이_재시도_없이_RECIPIENT_GONE으로_FAILED가_된다() {
         long id = register("withdrawn-1", "e-4");
 
-        poller.pollOnce();
+        workerService.processBatch();
 
         await().atMost(Duration.ofSeconds(5)).untilAsserted(() ->
                 assertThat(repository.findById(id).orElseThrow().getStatus())
@@ -115,7 +115,7 @@ class RetryPipelineTest extends IntegrationTestSupport {
     void 미존재_수신자는_RECIPIENT_NOT_FOUND로_FAILED가_된다() {
         long id = register("ghost-1", "e-5");
 
-        poller.pollOnce();
+        workerService.processBatch();
 
         await().atMost(Duration.ofSeconds(5)).untilAsserted(() ->
                 assertThat(repository.findById(id).orElseThrow().getStatus())

@@ -16,10 +16,10 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
-class NotificationClaimerTest extends IntegrationTestSupport {
+class NotificationTransactionServiceClaimTest extends IntegrationTestSupport {
 
     @Autowired
-    NotificationClaimer claimer;
+    NotificationTransactionService transactionService;
 
     @Autowired
     NotificationRepository repository;
@@ -35,7 +35,7 @@ class NotificationClaimerTest extends IntegrationTestSupport {
         Notification a = savePendingInPast("a");
         Notification b = savePendingInPast("b");
 
-        List<ClaimedNotification> claimed = claimer.claimBatch();
+        List<ClaimedNotification> claimed = transactionService.claimBatch();
 
         assertThat(claimed).extracting(ClaimedNotification::id)
                 .containsExactlyInAnyOrder(a.getId(), b.getId());
@@ -52,7 +52,7 @@ class NotificationClaimerTest extends IntegrationTestSupport {
     void 이미_클레임된_행은_다시_클레임되지_않는다() {
         savePendingInPast("a");
 
-        assertThat(claimer.claimBatch()).hasSize(1);
-        assertThat(claimer.claimBatch()).isEmpty();
+        assertThat(transactionService.claimBatch()).hasSize(1);
+        assertThat(transactionService.claimBatch()).isEmpty();
     }
 }

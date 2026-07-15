@@ -15,16 +15,13 @@ import java.time.ZoneOffset;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
-class NotificationResultRecorderTest extends IntegrationTestSupport {
+class NotificationTransactionServiceResultTest extends IntegrationTestSupport {
 
     @Autowired
-    NotificationResultRecorder recorder;
+    NotificationTransactionService transactionService;
 
     @Autowired
     NotificationRepository repository;
-
-    @Autowired
-    NotificationClaimer claimer;
 
     private Notification saveProcessing(String key) {
         Clock past = Clock.fixed(Instant.now().minus(Duration.ofMinutes(1)), ZoneOffset.UTC);
@@ -36,9 +33,9 @@ class NotificationResultRecorderTest extends IntegrationTestSupport {
     @Test
     void 성공_기록하면_SENT로_전환되고_발송시각이_기록된다() {
         Notification processing = saveProcessing("a");
-        ClaimedNotification claim = claimer.claimBatch().getFirst();
+        ClaimedNotification claim = transactionService.claimBatch().getFirst();
 
-        recorder.recordSuccess(claim);
+        transactionService.recordSuccess(claim);
 
         Notification reloaded = repository.findById(processing.getId()).orElseThrow();
         assertThat(reloaded.getStatus()).isEqualTo(NotificationStatus.SENT);

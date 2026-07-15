@@ -173,6 +173,26 @@
 
 ---
 
+## Phase 5.5 — Phase 6 전 구조·복잡도 정리
+
+### A. 서비스 경계 단순화
+
+- [x] 등록 트랜잭션 책임을 `NotificationCreationService`로 명확화하고 orchestration은 `NotificationService`에 유지
+- [x] 워커 흐름을 `NotificationWorkerService`, 짧은 DB 트랜잭션을 `NotificationTransactionService`로 통합
+- [x] 폴링·스턱 복구 스케줄 진입점을 `NotificationScheduler` 하나로 통합
+- [x] 기존 semaphore, claim 조건, deadlock 재시도 등 동작 정책을 변경하지 않고 81개 테스트 통과
+
+### B. 오버엔지니어링 제거
+
+- [ ] 멱등 등록의 deadlock 재시도 단순화
+- [ ] worker 용량 제어 정책 단일화
+- [ ] claim token 중심으로 세대 검증 단순화
+- [ ] scheduler 전용 pool 및 중복 설정 제거
+- [ ] 엔티티와 bulk UPDATE에 중복된 상태 전이 정리
+- [ ] 구조 종속 테스트와 문서 정리
+
+---
+
 ## Phase 6 — 사용자 목록 조회 + 읽음 처리 (FR-3, OPT-2)
 
 - [ ] T6.1 Querydsl 동적 쿼리: 수신자별 목록, `read` 필터(IN_APP), 최신순, 페이지네이션 (`BooleanBuilder` + offset/limit + count)

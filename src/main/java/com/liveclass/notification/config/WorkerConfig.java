@@ -27,7 +27,7 @@ public class WorkerConfig {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(properties.workerPoolSize());
         executor.setMaxPoolSize(properties.workerPoolSize());
-        // 실제 워커 수만큼만 클레임(NotificationPoller의 permit)하므로 실행 전 backlog를
+        // 실제 워커 수만큼만 클레임(NotificationWorkerService의 permit)하므로 실행 전 backlog를
         // 만들지 않는다. 큐 대기 시간이 스턱 시간으로 오인되는 경로를 제거한다.
         executor.setQueueCapacity(0);
         executor.setThreadNamePrefix("notif-worker-");

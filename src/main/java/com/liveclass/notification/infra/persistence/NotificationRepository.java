@@ -20,7 +20,7 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
      * 여러 폴러가 동시에 실행돼도 각 알림은 정확히 한 워커에만 선점된다. 분산 락 없이
      * 행 단위로 배타성을 보장한다 (MySQL 8+, spec FR-8).
      *
-     * <p>반드시 트랜잭션 안에서 호출해야 잠금이 유지된다 — 호출자({@code NotificationClaimer})가
+     * <p>반드시 트랜잭션 안에서 호출해야 잠금이 유지된다 — 호출자({@code NotificationTransactionService})가
      * {@code @Transactional} 경계를 제공한다.
      */
     @Query(value = """

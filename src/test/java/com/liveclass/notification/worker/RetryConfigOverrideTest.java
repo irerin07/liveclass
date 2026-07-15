@@ -10,7 +10,7 @@ import com.liveclass.notification.domain.NotificationStatus;
 import com.liveclass.notification.domain.NotificationType;
 import com.liveclass.notification.infra.persistence.NotificationAttemptRepository;
 import com.liveclass.notification.infra.persistence.NotificationRepository;
-import com.liveclass.notification.infra.worker.NotificationPoller;
+import com.liveclass.notification.infra.worker.NotificationWorkerService;
 import com.liveclass.notification.support.IntegrationTestSupport;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
@@ -31,7 +31,7 @@ class RetryConfigOverrideTest extends IntegrationTestSupport {
     NotificationService notificationService;
 
     @Autowired
-    NotificationPoller poller;
+    NotificationWorkerService workerService;
 
     @Autowired
     NotificationRepository repository;
@@ -46,7 +46,7 @@ class RetryConfigOverrideTest extends IntegrationTestSupport {
                 "ENROLLMENT", "e-1", null), null).notification().getId();
 
         await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
-            poller.pollOnce();
+            workerService.processBatch();
             assertThat(repository.findById(id).orElseThrow().getStatus())
                     .isEqualTo(NotificationStatus.FAILED);
         });

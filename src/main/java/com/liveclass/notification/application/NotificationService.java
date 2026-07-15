@@ -20,7 +20,7 @@ public class NotificationService {
     private final NotificationRepository repository;
     private final NotificationAttemptRepository attemptRepository;
     private final IdempotencyKeyGenerator keyGenerator;
-    private final NotificationInserter inserter;
+    private final NotificationCreationService creationService;
     private final ObjectMapper objectMapper;
 
     /**
@@ -51,7 +51,7 @@ public class NotificationService {
         CannotAcquireLockException lastDeadlock = null;
         for (int attempt = 0; attempt < 3; attempt++) {
             try {
-                return RegistrationResult.created(inserter.insert(key, command));
+                return RegistrationResult.created(creationService.create(key, command));
             } catch (DataIntegrityViolationException duplicate) {
                 Notification winner = repository.findByIdempotencyKey(key)
                         .orElseThrow(() -> new IllegalStateException(
