@@ -141,7 +141,7 @@
 > Phase 5(스턱 회수) 이전에 막는다.
 
 - [x] H1 워커 generic 예외 처리: 예상 밖 `RuntimeException`을 잡아 retryable 실패로 기록(`UNKNOWN` 코드), 결과 기록 자체 실패 시 로그 후 스턱 회수에 위임. `@MockitoBean`으로 수신자 조회 예외 주입 → 고착 없이 재시도 소진 후 FAILED 검증
-- [ ] H2 `LoggingEmailSender` 안전 파싱: `fail-<n>-times-*`의 n이 int 범위를 넘으면 `NumberFormatException` 대신 실패 주입 없이 성공 처리 (API 입력으로 워커가 죽지 않게)
+- [x] H2 `LoggingEmailSender` 안전 파싱: `fail-<n>-times-*`의 n이 int 범위 초과·형식 오류면 `null` 반환 → 실패 주입 없이 정상 발송. 단위 테스트 추가
 - [ ] H3 설정 fail-fast: `NotificationProperties`에 `@Validated` + `@Min`/`@NotEmpty`/양수 검증 (빈 backoff → 인덱스 오류, max-attempts<=0 등 잘못된 설정에서 기동 실패)
 - [ ] H4 graceful shutdown: 워커 executor `setWaitForTasksToCompleteOnShutdown(true)` + `awaitTerminationSeconds` (종료 시 큐 대기 작업 유실 완화, 강제 종료는 스턱 회수가 담당)
 - [ ] H5 `UNIQUE(notification_id, attempt_no)` 제약: 스턱 회수·늦은 결과 경쟁 시 동일 시도 번호 중복 기록 감지 (안전망)

@@ -59,4 +59,11 @@ class LoggingEmailSenderTest {
         assertThatCode(() -> sender.send(processingWithAttempt("fail-2-times-1", 3)))
                 .doesNotThrowAnyException();
     }
+
+    @Test
+    void 실패_횟수가_int_범위를_넘으면_예외_없이_정상_발송한다() {
+        assertThatCode(() -> sender.send(
+                processingWithAttempt("fail-99999999999999999999-times-user", 1)))
+                .doesNotThrowAnyException();
+    }
 }
