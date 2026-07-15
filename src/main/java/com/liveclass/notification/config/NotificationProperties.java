@@ -10,6 +10,8 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 @ConfigurationProperties(prefix = "notification")
 public record NotificationProperties(
         @DefaultValue("1s") Duration pollingInterval,
-        @DefaultValue("50") int batchSize
+        @DefaultValue("50") int batchSize,
+        @DefaultValue("4") int workerPoolSize,
+        @DefaultValue("2") int schedulerPoolSize
 ) {
 }

@@ -4,6 +4,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.mysql.MySQLContainer;
@@ -21,6 +22,7 @@ import org.testcontainers.mysql.MySQLContainer;
  * 각 테스트 전에 데이터를 정리한다. FK 순서를 지켜 attempts → notifications 순으로 삭제.
  */
 @SpringBootTest
+@ActiveProfiles("test")
 public abstract class IntegrationTestSupport {
 
     protected static final MySQLContainer MYSQL = new MySQLContainer("mysql:8");
