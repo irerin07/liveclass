@@ -80,7 +80,7 @@
 
 - [x] T3.1 `NotificationSender` 포트 인터페이스 (`supportedChannel`, `send`) + `NotificationSenderRouter`(채널별 인덱싱, 미등록/중복 채널 예외)
 - [x] T3.2 `LoggingEmailSender` 구현 (EMAIL 채널, 로그 출력 = 발송, 이번 phase는 항상 성공)
-- [ ] T3.3 `InAppSender` 구현 (저장 = 도달, 동일 파이프라인 통과 — spec §7.2)
+- [x] T3.3 `InAppSender` 구현 (IN_APP 채널, 저장 = 도달, EMAIL과 동일 파이프라인 통과 — spec §7.2)
 
 ### 클레임 + 워커
 
