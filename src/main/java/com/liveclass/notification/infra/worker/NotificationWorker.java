@@ -35,6 +35,17 @@ public class NotificationWorker {
     private final NotificationResultRecorder resultRecorder;
 
     public void process(Long notificationId) {
+        try {
+            processInternal(notificationId);
+        } catch (Exception unexpected) {
+            // 알 수 없는 오류(findById·recipient 조회·sender 내부 등)는 retryable로 기록해
+            // 태스크 종료로 인한 영구 PROCESSING 고착을 막는다.
+            log.error("알림 처리 중 예상 밖 오류 — retryable로 기록 id={}", notificationId, unexpected);
+            recordUnexpectedFailure(notificationId, unexpected);
+        }
+    }
+
+    private void processInternal(Long notificationId) {
         Notification notification = repository.findById(notificationId)
                 .orElseThrow(() -> new IllegalStateException(
                         "처리 대상 알림을 찾을 수 없음: id=" + notificationId));
@@ -64,5 +75,15 @@ public class NotificationWorker {
             return;
         }
         resultRecorder.recordSuccess(notificationId);
+    }
+
+    private void recordUnexpectedFailure(Long notificationId, Exception unexpected) {
+        try {
+            resultRecorder.recordFailure(notificationId, true,
+                    "UNKNOWN: " + unexpected.getClass().getSimpleName() + ": " + unexpected.getMessage());
+        } catch (Exception recordingFailure) {
+            // 결과 기록마저 실패(예: DB 장애)하면 상태를 바꿀 수 없다 — 스턱 회수(Phase 5)가 최종 안전망.
+            log.error("결과 기록마저 실패 id={} — 스턱 회수 대상으로 남김", notificationId, recordingFailure);
+        }
     }
 }

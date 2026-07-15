@@ -44,8 +44,8 @@ public class LoggingEmailSender implements NotificationSender {
 
         Matcher matcher = FAIL_N_TIMES.matcher(receiver);
         if (matcher.matches()) {
-            int failUntilAttempt = Integer.parseInt(matcher.group(1));
-            if (notification.getAttemptCount() <= failUntilAttempt) {
+            Integer failUntilAttempt = parseFailCount(matcher.group(1));
+            if (failUntilAttempt != null && notification.getAttemptCount() <= failUntilAttempt) {
                 throw new TransientSendException("일시 실패 주입: receiver=" + receiver
                         + " attempt=" + notification.getAttemptCount() + "/" + failUntilAttempt);
             }
@@ -54,5 +54,18 @@ public class LoggingEmailSender implements NotificationSender {
         log.info("[EMAIL] 발송 id={} receiver={} type={} ref={}:{} attempt={}",
                 notification.getId(), receiver, notification.getType(),
                 notification.getRefType(), notification.getRefId(), notification.getAttemptCount());
+    }
+
+    /**
+     * 실패 주입 횟수 파싱. int 범위를 넘거나 형식이 잘못되면 {@code null}을 반환해
+     * 실패 주입 없이 정상 발송되게 한다 (API 입력으로 워커가 죽지 않도록).
+     */
+    private Integer parseFailCount(String raw) {
+        try {
+            return Integer.parseInt(raw);
+        } catch (NumberFormatException e) {
+            log.debug("실패 주입 횟수 파싱 불가 — 주입 생략: {}", raw);
+            return null;
+        }
     }
 }

@@ -30,6 +30,10 @@ public class WorkerConfig {
         executor.setQueueCapacity(properties.batchSize());
         executor.setThreadNamePrefix("notif-worker-");
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        // 종료 시 진행 중·큐 대기 작업을 기다려 PROCESSING 유실을 줄인다. 강제 종료로
+        // 완료하지 못한 건은 스턱 회수(Phase 5)가 최종 안전망이다.
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(30);
         executor.initialize();
         return executor;
     }

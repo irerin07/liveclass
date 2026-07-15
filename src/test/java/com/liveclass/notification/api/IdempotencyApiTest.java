@@ -98,4 +98,39 @@ class IdempotencyApiTest extends IntegrationTestSupport {
 
         assertThat(repository.count()).isEqualTo(1);
     }
+
+    @Test
+    void 같은_Idempotency_Key에_payload만_달라도_422다() throws Exception {
+        String bodyWithPayload = BODY.replace("\"refId\": \"enrollment-42\"",
+                "\"refId\": \"enrollment-42\", \"payload\": { \"amount\": 1000 }");
+        mockMvc.perform(post("/api/notifications").header("Idempotency-Key", "client-key-3")
+                        .contentType(MediaType.APPLICATION_JSON).content(bodyWithPayload))
+                .andExpect(status().isAccepted());
+
+        String differentPayload = BODY.replace("\"refId\": \"enrollment-42\"",
+                "\"refId\": \"enrollment-42\", \"payload\": { \"amount\": 9999 }");
+        mockMvc.perform(post("/api/notifications").header("Idempotency-Key", "client-key-3")
+                        .contentType(MediaType.APPLICATION_JSON).content(differentPayload))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_MISUSE"));
+    }
+
+    @Test
+    void 같은_Idempotency_Key에_payload_필드_순서만_다르면_정상_재생이다() throws Exception {
+        String order1 = BODY.replace("\"refId\": \"enrollment-42\"",
+                "\"refId\": \"enrollment-42\", \"payload\": { \"a\": 1, \"b\": 2 }");
+        mockMvc.perform(post("/api/notifications").header("Idempotency-Key", "client-key-4")
+                        .contentType(MediaType.APPLICATION_JSON).content(order1))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.duplicated").value(false));
+
+        String order2 = BODY.replace("\"refId\": \"enrollment-42\"",
+                "\"refId\": \"enrollment-42\", \"payload\": { \"b\": 2, \"a\": 1 }");
+        mockMvc.perform(post("/api/notifications").header("Idempotency-Key", "client-key-4")
+                        .contentType(MediaType.APPLICATION_JSON).content(order2))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.duplicated").value(true));
+
+        assertThat(repository.count()).isEqualTo(1);
+    }
 }

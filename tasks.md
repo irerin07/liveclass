@@ -135,6 +135,22 @@
 
 ---
 
+## Phase 4.5 — 리뷰 대응 하드닝 (예상 밖 상황에서 PROCESSING 고착 방지)
+
+> 코드 리뷰에서 발견된 "예외/잘못된 설정/종료 시 알림이 PROCESSING에 갇히는 경로"를
+> Phase 5(스턱 회수) 이전에 막는다.
+
+- [x] H1 워커 generic 예외 처리: 예상 밖 `RuntimeException`을 잡아 retryable 실패로 기록(`UNKNOWN` 코드), 결과 기록 자체 실패 시 로그 후 스턱 회수에 위임. `@MockitoBean`으로 수신자 조회 예외 주입 → 고착 없이 재시도 소진 후 FAILED 검증
+- [x] H2 `LoggingEmailSender` 안전 파싱: `fail-<n>-times-*`의 n이 int 범위 초과·형식 오류면 `null` 반환 → 실패 주입 없이 정상 발송. 단위 테스트 추가
+- [x] H3 설정 fail-fast: `NotificationProperties` `@Validated` + `@Min`/`@NotEmpty` + 양수 Duration 검증(compact constructor). 잘못된 설정(빈/0 backoff, max-attempts=0, batch-size=0, scheduler<2)은 기동 실패. ApplicationContextRunner 테스트 6건
+- [x] H4 graceful shutdown: 워커 executor `setWaitForTasksToCompleteOnShutdown(true)` + `awaitTerminationSeconds(30)` (종료 시 큐 대기 작업 유실 완화, 강제 종료는 스턱 회수가 담당)
+- [x] H5 `UNIQUE(notification_id, attempt_no)` 제약(schema.sql): 스턱 회수·늦은 결과 경쟁 시 동일 시도 번호 중복 기록을 DB가 차단. 정상 흐름(attempt 1·2·3 구분)에는 영향 없음 확인
+- [x] H6 payload 크기 상한 64KB: `RegisterNotificationRequest`에 `@AssertTrue` 검증 → 초과 시 400. 메모리·저장·직렬화 비용 보호. 테스트 1건(70KB → 400)
+- [x] H7 멱등성 payload 검증: **명시적 `Idempotency-Key` 재사용 시에만** payload를 구조적 JSON 동등성(`ObjectMapper.readTree().equals()`, 필드 순서 무시)으로 비교 → 다르면 422. 내용 기반 키는 §7.1대로 payload 무시. 테스트 3건(다른 payload→422, 필드 순서만 다름→재생)
+- [x] H8 ⛳ 전체 테스트 통과(74건) + **커밋/푸시**
+
+---
+
 ## Phase 5 — 운영 시나리오 (FR-8)
 
 ### 스턱 회수

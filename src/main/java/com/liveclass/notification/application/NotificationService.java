@@ -9,6 +9,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import tools.jackson.databind.ObjectMapper;
 
 @Service
 @RequiredArgsConstructor
@@ -18,6 +20,7 @@ public class NotificationService {
     private final NotificationAttemptRepository attemptRepository;
     private final IdempotencyKeyGenerator keyGenerator;
     private final NotificationInserter inserter;
+    private final ObjectMapper objectMapper;
 
     /**
      * 알림 발송 요청 접수. 저장만 하고 즉시 반환한다 — 발송은 워커(Phase 3)의 몫이다.
@@ -37,9 +40,11 @@ public class NotificationService {
                                        String explicitIdempotencyKey) {
         String key = keyGenerator.generate(explicitIdempotencyKey, command);
 
+        boolean explicitKeyUsed = StringUtils.hasText(explicitIdempotencyKey);
+
         Optional<Notification> existing = repository.findByIdempotencyKey(key);
         if (existing.isPresent()) {
-            return asDuplicate(existing.get(), command);
+            return asDuplicate(existing.get(), command, explicitKeyUsed);
         }
 
         try {
@@ -49,26 +54,46 @@ public class NotificationService {
             Notification winner = repository.findByIdempotencyKey(key)
                     .orElseThrow(() -> new IllegalStateException(
                             "멱등성 키 제약 위반이 발생했으나 기존 행을 찾을 수 없음: key=" + key, race));
-            return asDuplicate(winner, command);
+            return asDuplicate(winner, command, explicitKeyUsed);
         }
     }
 
     /**
-     * 재생(replay) 처리. 단, 같은 키에 다른 요청 본문이면 재시도가 아니라 키 오용이므로
-     * 거부한다 (spec §5.3). 내용 기반 키는 키가 곧 내용 조합의 해시라 항상 일치하고,
-     * 이 검증은 클라이언트 제공 {@code Idempotency-Key}를 다른 본문에 재사용한 경우에만
-     * 실제로 걸린다.
+     * 재생(replay) 처리. 단, 같은 키에 다른 요청이면 재시도가 아니라 키 오용이므로 거부한다
+     * (spec §5.3). 내용 기반 키는 키가 곧 조합의 해시라 조합이 항상 일치하고, 이 검증은
+     * 클라이언트 제공 {@code Idempotency-Key}를 다른 요청에 재사용한 경우에 걸린다.
+     *
+     * <p>payload는 <b>명시적 키 재사용 시에만</b> 비교한다 — 내용 기반 키는 §7.1대로 payload를
+     * 식별에서 제외하기 때문이다. 비교는 필드 순서에 흔들리지 않도록 구조적 JSON 동등성으로 한다.
      */
-    private RegistrationResult asDuplicate(Notification existing, RegisterNotificationCommand command) {
-        boolean sameRequest = existing.getType() == command.type()
+    private RegistrationResult asDuplicate(Notification existing, RegisterNotificationCommand command,
+                                           boolean explicitKeyUsed) {
+        boolean sameComposite = existing.getType() == command.type()
                 && existing.getChannel() == command.channel()
                 && Objects.equals(existing.getReceiverId(), command.receiverId())
                 && Objects.equals(existing.getRefType(), command.refType())
                 && Objects.equals(existing.getRefId(), command.refId());
-        if (!sameRequest) {
+        if (!sameComposite) {
+            throw new IdempotencyKeyMisuseException();
+        }
+        if (explicitKeyUsed && !samePayload(existing.getPayload(), command.payload())) {
             throw new IdempotencyKeyMisuseException();
         }
         return RegistrationResult.duplicated(existing);
+    }
+
+    private boolean samePayload(String stored, String incoming) {
+        if (Objects.equals(stored, incoming)) {
+            return true;
+        }
+        if (stored == null || incoming == null) {
+            return false;
+        }
+        try {
+            return objectMapper.readTree(stored).equals(objectMapper.readTree(incoming));
+        } catch (RuntimeException e) {
+            return stored.equals(incoming);
+        }
     }
 
     @Transactional(readOnly = true)

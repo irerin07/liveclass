@@ -34,5 +34,6 @@ CREATE TABLE IF NOT EXISTS notification_attempts
     error_message    VARCHAR(1000) NULL,
     CONSTRAINT fk_notification_attempts_notification
         FOREIGN KEY (notification_id) REFERENCES notifications (id),
+    CONSTRAINT uk_notification_attempts_no UNIQUE (notification_id, attempt_no),
     INDEX idx_notification_attempts_notification (notification_id)
 );
