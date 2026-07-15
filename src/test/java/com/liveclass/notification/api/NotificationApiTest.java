@@ -121,4 +121,25 @@ class NotificationApiTest extends IntegrationTestSupport {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
     }
+
+    @Test
+    void payload가_64KB를_넘으면_400을_반환한다() throws Exception {
+        String hugeValue = "x".repeat(70_000);
+        String hugePayloadBody = """
+                {
+                  "receiverId": "student-1",
+                  "type": "PAYMENT_CONFIRMED",
+                  "channel": "EMAIL",
+                  "refType": "ENROLLMENT",
+                  "refId": "enrollment-42",
+                  "payload": { "blob": "%s" }
+                }
+                """.formatted(hugeValue);
+
+        mockMvc.perform(post("/api/notifications")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(hugePayloadBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
 }
