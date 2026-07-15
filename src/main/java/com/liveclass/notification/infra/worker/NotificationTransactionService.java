@@ -1,29 +1,57 @@
 package com.liveclass.notification.infra.worker;
 
 import com.liveclass.notification.application.BackoffPolicy;
+import com.liveclass.notification.config.NotificationProperties;
+import com.liveclass.notification.domain.Notification;
 import com.liveclass.notification.domain.NotificationAttempt;
 import com.liveclass.notification.infra.persistence.NotificationAttemptRepository;
 import com.liveclass.notification.infra.persistence.NotificationRepository;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 결과 상태와 시도 이력을 같은 트랜잭션에 기록하며, 현재 클레임 세대만 갱신한다. */
-@Component
+/** 알림 워커의 짧은 DB 트랜잭션을 담당한다. 외부 발송은 이 서비스 밖에서 수행한다. */
+@Service
 @RequiredArgsConstructor
-public class NotificationResultRecorder {
+public class NotificationTransactionService {
 
-    private static final Logger log = LoggerFactory.getLogger(NotificationResultRecorder.class);
+    private static final Logger log = LoggerFactory.getLogger(NotificationTransactionService.class);
     private static final int ERROR_MAX_LENGTH = 1000;
+    private static final String STUCK_REASON = "STUCK_RECOVERED: processing timeout";
 
     private final NotificationRepository repository;
     private final NotificationAttemptRepository attemptRepository;
+    private final NotificationProperties properties;
     private final BackoffPolicy backoffPolicy;
     private final Clock clock;
+
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public List<ClaimedNotification> claimBatch() {
+        return claimBatch(properties.batchSize());
+    }
+
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public List<ClaimedNotification> claimBatch(int limit) {
+        if (limit <= 0) {
+            return List.of();
+        }
+        List<Notification> claimable = repository.findClaimable(
+                clock.instant(), Math.min(limit, properties.batchSize()));
+        claimable.forEach(notification -> notification.claim(clock));
+        return claimable.stream().map(ClaimedNotification::from).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<Notification> findById(Long id) {
+        return repository.findById(id);
+    }
 
     @Transactional
     public boolean recordSuccess(ClaimedNotification claim) {
@@ -59,6 +87,22 @@ public class NotificationResultRecorder {
         attemptRepository.save(NotificationAttempt.failure(
                 claim.id(), claim.attemptNo(), claim.processingStartedAt(), now, safeError));
         return true;
+    }
+
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public int recoverStuck() {
+        Instant now = clock.instant();
+        Instant threshold = now.minus(properties.stuckThreshold());
+        List<Notification> stuck = repository.findStuck(threshold, properties.batchSize());
+        for (Notification notification : stuck) {
+            int attemptNo = notification.getAttemptCount();
+            Instant startedAt = notification.getProcessingStartedAt();
+            notification.recoverStuck(STUCK_REASON, clock);
+            attemptRepository.save(NotificationAttempt.failure(
+                    notification.getId(), attemptNo, startedAt, now, STUCK_REASON));
+            log.warn("스턱 알림 회수 id={} attempt={}", notification.getId(), attemptNo);
+        }
+        return stuck.size();
     }
 
     private static String truncate(String error) {

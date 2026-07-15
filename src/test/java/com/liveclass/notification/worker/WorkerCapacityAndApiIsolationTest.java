@@ -6,13 +6,13 @@ import static org.mockito.Mockito.doAnswer;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.liveclass.notification.application.sender.NotificationSenderRouter;
 import com.liveclass.notification.domain.Channel;
 import com.liveclass.notification.domain.Notification;
 import com.liveclass.notification.domain.NotificationStatus;
 import com.liveclass.notification.domain.NotificationType;
 import com.liveclass.notification.infra.persistence.NotificationRepository;
-import com.liveclass.notification.infra.worker.NotificationPoller;
-import com.liveclass.notification.infra.worker.NotificationWorker;
+import com.liveclass.notification.infra.worker.NotificationWorkerService;
 import com.liveclass.notification.support.IntegrationTestSupport;
 import java.time.Clock;
 import java.time.Instant;
@@ -29,8 +29,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 class WorkerCapacityAndApiIsolationTest extends IntegrationTestSupport {
 
-    @MockitoBean NotificationWorker worker;
-    @Autowired NotificationPoller poller;
+    @MockitoBean NotificationSenderRouter senderRouter;
+    @Autowired NotificationWorkerService workerService;
     @Autowired NotificationRepository repository;
     @Autowired MockMvc mockMvc;
 
@@ -43,7 +43,7 @@ class WorkerCapacityAndApiIsolationTest extends IntegrationTestSupport {
             workersStarted.countDown();
             releaseWorkers.await(5, TimeUnit.SECONDS);
             return null;
-        }).when(worker).process(any());
+        }).when(senderRouter).send(any());
 
         Clock past = Clock.fixed(Instant.now().minusSeconds(10), ZoneOffset.UTC);
         for (int i = 0; i < 10; i++) {
@@ -52,9 +52,9 @@ class WorkerCapacityAndApiIsolationTest extends IntegrationTestSupport {
                     "ENROLLMENT", "e-" + i, null, 3, past));
         }
 
-        assertThat(poller.pollOnce()).isEqualTo(4);
+        assertThat(workerService.processBatch()).isEqualTo(4);
         assertThat(workersStarted.await(2, TimeUnit.SECONDS)).isTrue();
-        assertThat(poller.pollOnce()).isZero();
+        assertThat(workerService.processBatch()).isZero();
         assertThat(repository.findAll().stream()
                 .filter(n -> n.getStatus() == NotificationStatus.PROCESSING)).hasSize(4);
         assertThat(repository.findAll().stream()

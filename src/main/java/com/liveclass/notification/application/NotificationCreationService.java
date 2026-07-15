@@ -19,14 +19,14 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Component
 @RequiredArgsConstructor
-public class NotificationInserter {
+public class NotificationCreationService {
 
     private final NotificationRepository repository;
     private final NotificationProperties properties;
     private final Clock clock;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public Notification insert(String idempotencyKey, RegisterNotificationCommand command) {
+    public Notification create(String idempotencyKey, RegisterNotificationCommand command) {
         Notification notification = Notification.pending(
                 idempotencyKey,
                 command.receiverId(),
@@ -38,6 +38,6 @@ public class NotificationInserter {
                 properties.retry().maxAttempts(),
                 clock
         );
-        return repository.save(notification);
+        return repository.saveAndFlush(notification);
     }
 }

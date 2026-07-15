@@ -16,13 +16,13 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
-class NotificationWorkerTest extends IntegrationTestSupport {
+class NotificationWorkerServiceTest extends IntegrationTestSupport {
 
     @Autowired
-    NotificationWorker worker;
+    NotificationWorkerService workerService;
 
     @Autowired
-    NotificationClaimer claimer;
+    NotificationTransactionService transactionService;
 
     @Autowired
     NotificationRepository repository;
@@ -36,9 +36,9 @@ class NotificationWorkerTest extends IntegrationTestSupport {
     @Test
     void 클레임된_EMAIL_알림을_처리하면_SENT가_된다() {
         savePendingInPast("email", Channel.EMAIL);
-        List<ClaimedNotification> claimed = claimer.claimBatch();
+        List<ClaimedNotification> claimed = transactionService.claimBatch();
 
-        worker.process(claimed.getFirst());
+        workerService.process(claimed.getFirst());
 
         Notification reloaded = repository.findById(claimed.getFirst().id()).orElseThrow();
         assertThat(reloaded.getStatus()).isEqualTo(NotificationStatus.SENT);
@@ -48,9 +48,9 @@ class NotificationWorkerTest extends IntegrationTestSupport {
     @Test
     void 클레임된_IN_APP_알림도_같은_파이프라인으로_SENT가_된다() {
         savePendingInPast("inapp", Channel.IN_APP);
-        List<ClaimedNotification> claimed = claimer.claimBatch();
+        List<ClaimedNotification> claimed = transactionService.claimBatch();
 
-        worker.process(claimed.getFirst());
+        workerService.process(claimed.getFirst());
 
         assertThat(repository.findById(claimed.getFirst().id()).orElseThrow().getStatus())
                 .isEqualTo(NotificationStatus.SENT);
