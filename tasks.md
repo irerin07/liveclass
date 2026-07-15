@@ -84,7 +84,7 @@
 
 ### 클레임 + 워커
 
-- [ ] T3.4 클레임 쿼리 구현: `status = PENDING AND next_attempt_at <= now` + `FOR UPDATE SKIP LOCKED` + `LIMIT :batchSize` — JPA 힌트(`lock.timeout=-2`) vs 네이티브 쿼리 검증 후 택1, [결정 기록]에 메모
+- [x] T3.4 클레임 쿼리 `findClaimable`: `status = PENDING AND next_attempt_at <= :now` + `ORDER BY next_attempt_at, id` + `LIMIT :batchSize` + `FOR UPDATE SKIP LOCKED` (네이티브). 선택 조건·정렬·batchSize + SKIP LOCKED 동작(잠긴 행 건너뛰기·비블로킹)을 동시 트랜잭션 테스트로 검증
 - [ ] T3.5 `NotificationClaimer` 빈: `@Transactional` 클레임 → PROCESSING 전환 + `processing_started_at` 기록 → ID 목록 반환 (TX1)
 - [ ] T3.6 `NotificationWorker` 빈: 트랜잭션 **없이** 발송 수행 → 결과를 `ResultRecorder`에 위임
 - [ ] T3.7 `ResultRecorder` 빈: `@Transactional`로 SENT 전환 (TX2). 세 빈 분리로 self-invocation 프록시 문제 회피
@@ -223,4 +223,4 @@
 - [x] (Phase 1) 테스트 명명: 한글 메서드명은 유지하되 `@Nested` 클래스명은 영문 + `@DisplayName` — 한글 중첩 클래스명은 클래스 파일명이 되어 비UTF-8 파일시스템에서 컴파일 실패 가능
 - [x] (Phase 1, 리뷰 반영) **Lombok 도입** — 프로젝트 컨벤션으로 채택. 빈은 `@RequiredArgsConstructor`, 엔티티는 `@Getter` + `@NoArgsConstructor(access = PROTECTED)`. Querydsl APT + Lombok 동시 애노테이션 프로세싱이 Boot 4/Java 21에서 정상 컴파일 확인 (build.gradle의 annotationProcessor에 lombok 추가). Boot BOM이 Lombok 버전 관리
 - [x] (Phase 2, T2.2) **Testcontainers 싱글턴 컨테이너 패턴**: `@Testcontainers` + 베이스 클래스의 static `@Container`는 각 서브클래스 종료 시 공유 컨테이너를 정지시켜, 뒤에 실행되는 테스트 클래스가 죽은 컨테이너에 붙어 연결 타임아웃(실행마다 다른 클래스가 번갈아 실패)이 났다. → static 블록에서 1회 `start()`, 정지 안 함(Ryuk가 JVM 종료 시 회수), `@DynamicPropertySource`로 데이터소스 주입. 내용 기반 멱등성 키 충돌 방지를 위해 `@BeforeEach`에서 테이블 정리(FK 순서 attempts→notifications)
-- [ ] (T3.4) SKIP LOCKED 구현 방식: _(미정 — JPA 힌트 vs 네이티브 쿼리)_
+- [x] (T3.4) SKIP LOCKED 구현 방식: **네이티브 쿼리 채택.** `@Query(nativeQuery=true)`에 `FOR UPDATE SKIP LOCKED` + `LIMIT` 명시. JPA 힌트(`lock.timeout=-2`) + Pageable 방식은 pagination+lock 경고와 불투명성이 있어 배제. Boot 4/Hibernate 7/MySQL 8에서 정상 동작, Instant 파라미터 바인딩·SKIP LOCKED 비블로킹 동작을 동시 트랜잭션 테스트로 확인. 반드시 호출자 트랜잭션 안에서 실행돼야 잠금 유지

@@ -37,7 +37,7 @@ public abstract class IntegrationTestSupport {
     }
 
     @Autowired
-    private JdbcTemplate jdbcTemplate;
+    protected JdbcTemplate jdbcTemplate;
 
     @BeforeEach
     void cleanDatabase() {
