@@ -144,7 +144,7 @@
 - [x] H2 `LoggingEmailSender` 안전 파싱: `fail-<n>-times-*`의 n이 int 범위 초과·형식 오류면 `null` 반환 → 실패 주입 없이 정상 발송. 단위 테스트 추가
 - [x] H3 설정 fail-fast: `NotificationProperties` `@Validated` + `@Min`/`@NotEmpty` + 양수 Duration 검증(compact constructor). 잘못된 설정(빈/0 backoff, max-attempts=0, batch-size=0, scheduler<2)은 기동 실패. ApplicationContextRunner 테스트 6건
 - [x] H4 graceful shutdown: 워커 executor `setWaitForTasksToCompleteOnShutdown(true)` + `awaitTerminationSeconds(30)` (종료 시 큐 대기 작업 유실 완화, 강제 종료는 스턱 회수가 담당)
-- [ ] H5 `UNIQUE(notification_id, attempt_no)` 제약: 스턱 회수·늦은 결과 경쟁 시 동일 시도 번호 중복 기록 감지 (안전망)
+- [x] H5 `UNIQUE(notification_id, attempt_no)` 제약(schema.sql): 스턱 회수·늦은 결과 경쟁 시 동일 시도 번호 중복 기록을 DB가 차단. 정상 흐름(attempt 1·2·3 구분)에는 영향 없음 확인
 - [ ] H6 payload 크기 상한(예 64KB): 요청 payload 크기 제한으로 메모리·저장·직렬화 보호
 - [ ] H7 멱등성 payload 검증: **명시적 `Idempotency-Key` 재사용 시에만** payload(정규화 JSON 동등성) 비교 → 다르면 422. 내용 기반 키는 §7.1대로 payload 무시(현행)
 - [ ] H8 ⛳ 전체 테스트 통과 + **커밋/푸시**
