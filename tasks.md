@@ -88,7 +88,7 @@
 - [x] T3.5 `NotificationClaimer` 빈: `@Transactional` 클레임(findClaimable) → PROCESSING 전환 + attempt_count++ + `processing_started_at` 기록 → ID 목록 반환 (TX1). 테스트 2건(전환·기록, 재클레임 방지)
 - [x] T3.6 `NotificationWorker` 빈: 트랜잭션 **없이** 발송(senderRouter) 수행 → 결과를 `NotificationResultRecorder`에 위임. 테스트 2건(EMAIL/IN_APP 처리 → SENT)
 - [x] T3.7 `NotificationResultRecorder` 빈: `@Transactional` recordSuccess로 SENT 전환 + sent_at 기록 (TX2). 세 빈 분리로 self-invocation 프록시 문제 회피. 재시도·실패·이력은 Phase 4
-- [ ] T3.8 폴러: `@Scheduled(fixedDelayString = "${notification.polling-interval}")` → 클레임 → 워커 스레드풀 위임
+- [x] T3.8 폴러: `NotificationPoller.pollOnce()`(클레임 → 워커 스레드풀 위임, 직접 호출 가능) + `ScheduledPoller`(`@Scheduled(fixedDelayString)` 트리거, `@Profile("!test")`). 파이프라인 테스트로 등록 → pollOnce → SENT 검증
 - [x] T3.9 스레드풀 구성(`WorkerConfig`): `ThreadPoolTaskExecutor`(워커, CallerRunsPolicy backpressure) + `ThreadPoolTaskScheduler` size ≥ 2 (NFR-4) + `@EnableScheduling`. `NotificationProperties`에 workerPoolSize/schedulerPoolSize 추가. 테스트는 `@ActiveProfiles("test")`로 스케줄 트리거 제외
 
 ### 검증
