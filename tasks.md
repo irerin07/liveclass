@@ -130,8 +130,8 @@
 - [x] T4.13 통합 테스트: Permanent 실패 → 재시도 없이 즉시 FAILED(1시도)
 - [x] T4.14 통합 테스트: `withdrawn-*` → FAILED + `RECIPIENT_GONE`(1시도) / `ghost-*` → FAILED + `RECIPIENT_NOT_FOUND` (발송 없이 최종 실패)
 - [x] T4.15 단위 테스트: 백오프 시도 번호별 대기 시간·목록 초과 고정 (BackoffPolicyTest, T4.6에 포함)
-- [ ] T4.16 테스트: 설정 변경(횟수/간격)이 동작에 반영됨
-- [ ] T4.17 ⛳ 전체 테스트 통과 + **커밋** (`feat: 발송 실패 재시도·최종 실패·수신 가능 검증`)
+- [x] T4.16 테스트: `max-attempts=2` 오버라이드 시 2회 시도 후 FAILED (설정 변경이 동작에 반영됨)
+- [x] T4.17 ⛳ 전체 테스트 통과(63건) + **커밋**
 
 ---
 
