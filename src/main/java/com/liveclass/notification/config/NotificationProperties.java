@@ -21,11 +21,15 @@ public record NotificationProperties(
         @DefaultValue("50") @Min(1) int batchSize,
         @DefaultValue("4") @Min(1) int workerPoolSize,
         @DefaultValue("2") @Min(2) int schedulerPoolSize,
+        @DefaultValue("5m") @NotNull Duration stuckThreshold,
+        @DefaultValue("30s") @NotNull Duration stuckRecoveryInterval,
         @Valid @NotNull @DefaultValue Retry retry
 ) {
 
     public NotificationProperties {
         requirePositive("polling-interval", pollingInterval);
+        requirePositive("stuck-threshold", stuckThreshold);
+        requirePositive("stuck-recovery-interval", stuckRecoveryInterval);
     }
 
     /**

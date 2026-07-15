@@ -1,6 +1,10 @@
 package com.liveclass.notification.infra.worker;
 
 import java.util.List;
+import java.util.concurrent.Semaphore;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import com.liveclass.notification.config.NotificationProperties;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Component;
@@ -14,15 +18,20 @@ import org.springframework.stereotype.Component;
 @Component
 public class NotificationPoller {
 
+    private static final Logger log = LoggerFactory.getLogger(NotificationPoller.class);
+
     private final NotificationClaimer claimer;
     private final NotificationWorker worker;
     private final ThreadPoolTaskExecutor workerExecutor;
+    private final Semaphore workerPermits;
 
     public NotificationPoller(NotificationClaimer claimer, NotificationWorker worker,
-                              @Qualifier("notificationWorkerExecutor") ThreadPoolTaskExecutor workerExecutor) {
+                              @Qualifier("notificationWorkerExecutor") ThreadPoolTaskExecutor workerExecutor,
+                              NotificationProperties properties) {
         this.claimer = claimer;
         this.worker = worker;
         this.workerExecutor = workerExecutor;
+        this.workerPermits = new Semaphore(properties.workerPoolSize());
     }
 
     /**
@@ -30,10 +39,36 @@ public class NotificationPoller {
      * 발송은 워커 스레드에서 비동기로 수행된다.
      */
     public int pollOnce() {
-        List<Long> claimed = claimer.claimBatch();
-        for (Long id : claimed) {
-            workerExecutor.execute(() -> worker.process(id));
+        int permits = acquireAvailablePermits();
+        if (permits == 0) {
+            return 0;
+        }
+
+        List<ClaimedNotification> claimed = claimer.claimBatch(permits);
+        workerPermits.release(permits - claimed.size());
+        for (ClaimedNotification claim : claimed) {
+            try {
+                workerExecutor.execute(() -> {
+                    try {
+                        worker.process(claim);
+                    } finally {
+                        workerPermits.release();
+                    }
+                });
+            } catch (RuntimeException rejected) {
+                workerPermits.release();
+                log.error("클레임한 알림을 워커에 제출하지 못함 id={} — 스턱 회수 대상",
+                        claim.id(), rejected);
+            }
         }
         return claimed.size();
+    }
+
+    private int acquireAvailablePermits() {
+        int acquired = 0;
+        while (workerPermits.tryAcquire()) {
+            acquired++;
+        }
+        return acquired;
     }
 }

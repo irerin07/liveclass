@@ -13,6 +13,7 @@ CREATE TABLE notifications
     max_attempts           INT           NOT NULL,
     next_attempt_at        DATETIME(6)   NOT NULL,
     processing_started_at  DATETIME(6)   NULL,
+    claim_token            VARCHAR(36)   NULL,
     last_error             VARCHAR(1000) NULL,
     sent_at                DATETIME(6)   NULL,
     read_at                DATETIME(6)   NULL,

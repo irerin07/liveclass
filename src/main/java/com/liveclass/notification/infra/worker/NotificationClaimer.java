@@ -9,6 +9,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Isolation;
 
 /**
  * 클레임 단계(TX1, spec §5.2). 발송 가능한 알림을 {@code FOR UPDATE SKIP LOCKED}로
@@ -30,11 +31,20 @@ public class NotificationClaimer {
     /**
      * 발송 가능한 알림을 배치로 클레임하고 그 ID 목록을 반환한다.
      */
-    @Transactional
-    public List<Long> claimBatch() {
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public List<ClaimedNotification> claimBatch() {
+        return claimBatch(properties.batchSize());
+    }
+
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public List<ClaimedNotification> claimBatch(int limit) {
+        if (limit <= 0) {
+            return List.of();
+        }
         Instant now = clock.instant();
-        List<Notification> claimable = repository.findClaimable(now, properties.batchSize());
+        List<Notification> claimable = repository.findClaimable(now,
+                Math.min(limit, properties.batchSize()));
         claimable.forEach(notification -> notification.claim(clock));
-        return claimable.stream().map(Notification::getId).toList();
+        return claimable.stream().map(ClaimedNotification::from).toList();
     }
 }
