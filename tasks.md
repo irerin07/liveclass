@@ -112,7 +112,7 @@
 
 ### 수신 가능 검증 (spec §7.7)
 
-- [ ] T4.4 `RecipientStatusPort` 포트 인터페이스 — 상태 반환 계약 (ACTIVE / WITHDRAWN / NOT_FOUND) + 패턴 스텁 구현 (`withdrawn-*` → WITHDRAWN, `ghost-*` → NOT_FOUND, 그 외 ACTIVE)
+- [x] T4.4 `RecipientStatusPort` 포트 (상태 반환: ACTIVE/WITHDRAWN/NOT_FOUND) + `PatternRecipientStatusPort` 스텁 (`withdrawn-*`→WITHDRAWN, `ghost-*`→NOT_FOUND, 그 외 ACTIVE). 단위 테스트 3건
 - [ ] T4.5 워커 발송 직전 검증 정책: WITHDRAWN → FAILED + `RECIPIENT_GONE`(정상 억제) / NOT_FOUND → FAILED + `RECIPIENT_NOT_FOUND`(데이터 이상, 경고 로그) — 둘 다 발송기 미호출·재시도 없음, attempt 이력 1건 기록
 
 ### 재시도
