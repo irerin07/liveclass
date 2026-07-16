@@ -1,7 +1,10 @@
 package com.liveclass.notification.api;
 
+import com.liveclass.notification.api.request.RegisterNotificationRequest;
+import com.liveclass.notification.api.response.NotificationResponse;
+import com.liveclass.notification.api.response.RegisterNotificationResponse;
 import com.liveclass.notification.application.NotificationService;
-import com.liveclass.notification.application.RegistrationResult;
+import com.liveclass.notification.application.result.RegistrationResult;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;

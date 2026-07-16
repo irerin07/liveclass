@@ -1,5 +1,6 @@
 package com.liveclass.notification.application;
 
+import com.liveclass.notification.application.command.RegisterNotificationCommand;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.liveclass.notification.domain.Channel;

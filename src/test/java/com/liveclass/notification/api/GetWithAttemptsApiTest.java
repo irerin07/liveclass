@@ -7,7 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.liveclass.notification.application.NotificationService;
-import com.liveclass.notification.application.RegisterNotificationCommand;
+import com.liveclass.notification.application.command.RegisterNotificationCommand;
 import com.liveclass.notification.domain.Channel;
 import com.liveclass.notification.domain.NotificationStatus;
 import com.liveclass.notification.domain.NotificationType;

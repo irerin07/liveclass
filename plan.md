@@ -87,7 +87,7 @@
 ### 기술 메모
 
 - ID는 `BIGINT AUTO_INCREMENT`. `idempotency_key` 컬럼은 정의하되 UNIQUE 제약은 Phase 2에서 활성화 (혹은 처음부터 걸어두고 Phase 1에서는 키에 UUID 저장 — **후자 권장**, 마이그레이션 불필요)
-- 스키마 관리: `ddl-auto=validate` + `schema.sql` (또는 Flyway). 과제 규모에서는 `schema.sql`로 충분하되, 인덱스 (`status, next_attempt_at`), (`receiver_id, created_at`)를 처음부터 포함
+- 스키마 관리: `ddl-auto=validate` + Flyway `V1__init_schema.sql`. 인덱스 (`status, next_attempt_at`), (`receiver_id, created_at`)와 UNIQUE 제약을 최초 마이그레이션부터 포함
 - 시간 필드는 전부 `Instant` ↔ `DATETIME(6)`
 - 상태 전이를 엔티티 메서드로 두는 이유: FR-4 AC("정의되지 않은 전이는 실패")를 단위 테스트로 바로 검증 가능
 
@@ -108,8 +108,8 @@
 1. 멱등성 키 생성 규칙 구현: `type:refType:refId:receiverId:channel` (spec §5.3). `Idempotency-Key` 헤더 오버라이드 지원
 2. `idempotency_key` UNIQUE 제약 활성화
 3. 등록 흐름을 2중 방어로 변경:
-   - 사전 조회 → 존재 시 `200 + 기존 ID + duplicated: true`
-   - INSERT 시 `DataIntegrityViolationException` 캐치 → 기존 행 재조회 → 200 응답
+   - 사전 조회 → 존재 시 `202 + 기존 ID + duplicated: true`
+   - INSERT 시 `DataIntegrityViolationException` 캐치 → 기존 행 재조회 → 202 응답
 4. 동시성 테스트: 동일 키 10-스레드 동시 POST → 1건 생성
 
 ### 기술 메모
@@ -120,8 +120,8 @@
 
 ### 완료 기준
 
-- [ ] 동일 키 순차 재요청 → 200 + 기존 ID
-- [ ] 동일 키 10-스레드 동시 POST → 알림 1건, 나머지 200 응답 (FR-6 AC)
+- [ ] 동일 키 순차 재요청 → 202 + 기존 ID + `duplicated: true`
+- [ ] 동일 키 10-스레드 동시 POST → 알림 1건, 나머지 202 응답 (FR-6 AC)
 - [ ] 서로 다른 채널의 같은 이벤트 → 각각 생성됨 (spec §7.1 검증)
 
 ---

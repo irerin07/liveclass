@@ -1,4 +1,4 @@
-package com.liveclass.notification.api;
+package com.liveclass.notification.api.response;
 
 import com.liveclass.notification.domain.Channel;
 import com.liveclass.notification.domain.Notification;

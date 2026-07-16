@@ -6,7 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
 import com.liveclass.notification.application.NotificationService;
-import com.liveclass.notification.application.RegisterNotificationCommand;
+import com.liveclass.notification.application.command.RegisterNotificationCommand;
 import com.liveclass.notification.application.recipient.RecipientStatusPort;
 import com.liveclass.notification.domain.Channel;
 import com.liveclass.notification.domain.NotificationStatus;

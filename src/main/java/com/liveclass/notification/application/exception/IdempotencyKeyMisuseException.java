@@ -1,4 +1,4 @@
-package com.liveclass.notification.application;
+package com.liveclass.notification.application.exception;
 
 /**
  * 같은 멱등성 키(주로 클라이언트 제공 {@code Idempotency-Key})에 다른 요청 본문이

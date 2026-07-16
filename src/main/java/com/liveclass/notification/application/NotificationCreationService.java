@@ -1,5 +1,6 @@
 package com.liveclass.notification.application;
 
+import com.liveclass.notification.application.command.RegisterNotificationCommand;
 import com.liveclass.notification.config.NotificationProperties;
 import com.liveclass.notification.domain.Notification;
 import com.liveclass.notification.infra.persistence.NotificationRepository;

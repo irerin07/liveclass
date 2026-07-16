@@ -1,8 +1,8 @@
-package com.liveclass.notification.api;
+package com.liveclass.notification.api.error;
 
-import com.liveclass.notification.application.ChannelNotSupportedException;
-import com.liveclass.notification.application.IdempotencyKeyMisuseException;
-import com.liveclass.notification.application.NotificationNotFoundException;
+import com.liveclass.notification.application.exception.ChannelNotSupportedException;
+import com.liveclass.notification.application.exception.IdempotencyKeyMisuseException;
+import com.liveclass.notification.application.exception.NotificationNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;

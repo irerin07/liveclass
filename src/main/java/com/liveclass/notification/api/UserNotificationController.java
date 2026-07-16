@@ -1,5 +1,7 @@
 package com.liveclass.notification.api;
 
+import com.liveclass.notification.api.response.NotificationSummaryResponse;
+import com.liveclass.notification.api.response.PageResponse;
 import com.liveclass.notification.application.NotificationService;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;

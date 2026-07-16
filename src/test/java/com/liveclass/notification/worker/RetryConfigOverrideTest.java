@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
 import com.liveclass.notification.application.NotificationService;
-import com.liveclass.notification.application.RegisterNotificationCommand;
+import com.liveclass.notification.application.command.RegisterNotificationCommand;
 import com.liveclass.notification.domain.Channel;
 import com.liveclass.notification.domain.NotificationStatus;
 import com.liveclass.notification.domain.NotificationType;
