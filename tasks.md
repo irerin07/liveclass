@@ -64,7 +64,7 @@
 
 - [x] T2.1 멱등성 키 생성기: `type:refType:refId:receiverId:channel`, `Idempotency-Key` 헤더 오버라이드 지원. 저장 키는 SHA-256 해시(원시 조합이 컬럼 200자 초과 가능·구분자 충돌 방지) (spec §5.3)
 - [x] T2.2 등록 흐름 1차 방어: 사전 조회(`findByIdempotencyKey`) → 존재 시 `202 + 기존 ID + duplicated: true`. 컨트롤러 `Idempotency-Key` 헤더 배선 + 서비스 키 생성/사전 조회
-- [x] T2.3 등록 흐름 2차 방어: `NotificationInserter`(REQUIRES_NEW)로 INSERT 격리, 서비스는 트랜잭션 밖에서 `DataIntegrityViolationException` 캐치 → 새 트랜잭션 재조회 → 승자 반환 (decisions.md D-1)
+- [x] T2.3 등록 흐름 2차 방어: `NotificationCreationService`의 독립 트랜잭션으로 INSERT 격리, orchestration 서비스는 트랜잭션 밖에서 UNIQUE 충돌을 처리하고 기존 행 반환 (decisions.md D-1)
 - [x] T2.4 컨트롤러 상태 코드 분기 제거 → 신규·중복 항상 202 (T2.2에 포함, 리뷰 코멘트 2·3 반영, decisions.md D-1)
 - [x] T2.5 키 오용 처리: 같은 `Idempotency-Key` + 다른 요청 본문 → `422 IDEMPOTENCY_KEY_MISUSE`. 별도 fingerprint 컬럼 없이 재조회된 기존 행의 필드(type/refType/refId/receiverId/channel)를 요청과 비교 — 내용 기반 키는 키가 곧 조합 해시라 항상 일치, 명시 헤더 키 재사용 시에만 실제 감지
 - [x] T2.6 통합 테스트: 동일 키 순차 재요청 → 202 + 기존 ID + `duplicated:true`, 신규 행 없음
@@ -85,16 +85,16 @@
 ### 클레임 + 워커
 
 - [x] T3.4 클레임 쿼리 `findClaimable`: `status = PENDING AND next_attempt_at <= :now` + `ORDER BY next_attempt_at, id` + `LIMIT :batchSize` + `FOR UPDATE SKIP LOCKED` (네이티브). 선택 조건·정렬·batchSize + SKIP LOCKED 동작(잠긴 행 건너뛰기·비블로킹)을 동시 트랜잭션 테스트로 검증
-- [x] T3.5 `NotificationClaimer` 빈: `@Transactional` 클레임(findClaimable) → PROCESSING 전환 + attempt_count++ + `processing_started_at` 기록 → ID 목록 반환 (TX1). 테스트 2건(전환·기록, 재클레임 방지)
-- [x] T3.6 `NotificationWorker` 빈: 트랜잭션 **없이** 발송(senderRouter) 수행 → 결과를 `NotificationResultRecorder`에 위임. 테스트 2건(EMAIL/IN_APP 처리 → SENT)
-- [x] T3.7 `NotificationResultRecorder` 빈: `@Transactional` recordSuccess로 SENT 전환 + sent_at 기록 (TX2). 세 빈 분리로 self-invocation 프록시 문제 회피. 재시도·실패·이력은 Phase 4
-- [x] T3.8 폴러: `NotificationPoller.pollOnce()`(클레임 → 워커 스레드풀 위임, 직접 호출 가능) + `ScheduledPoller`(`@Scheduled(fixedDelayString)` 트리거, `@Profile("!test")`). 파이프라인 테스트로 등록 → pollOnce → SENT 검증
+- [x] T3.5 `NotificationTransactionService`: 짧은 트랜잭션에서 claim, 결과 기록, stuck recovery 수행
+- [x] T3.6 `NotificationWorkerService`: 트랜잭션 없이 수신 상태 확인과 발송을 수행하고 결과 기록 위임
+- [x] T3.7 결과 기록은 claim token 조건부 UPDATE와 attempt INSERT를 같은 트랜잭션에서 처리
+- [x] T3.8 `NotificationScheduler`가 주기적으로 `processBatch`와 stuck recovery를 호출하며 테스트에서는 `processBatch()`를 직접 호출
 - [x] T3.9 스레드풀 구성(`WorkerConfig`): 발송 전용 `ThreadPoolTaskExecutor` + `@EnableScheduling`. 테스트는 `@ActiveProfiles("test")`로 스케줄 트리거 제외
 
 ### 검증
 
-- [x] T3.10 Awaitility로 워커 비동기 완료 대기. 스케줄러 대신 `pollOnce()` 직접 호출로 결정적 검증(폴링 주기 타이밍에 의존하지 않음)
-- [x] T3.11 통합 테스트: 등록 → pollOnce → Awaitility로 SENT 전환 확인
+- [x] T3.10 Awaitility로 워커 비동기 완료 대기. 스케줄러 대신 `processBatch()` 직접 호출로 결정적 검증
+- [x] T3.11 통합 테스트: 등록 → processBatch → Awaitility로 SENT 전환 확인
 - [x] T3.12 통합 테스트: 등록 직후 상태 = PENDING, sent_at/processing_started_at null (API가 발송을 기다리지 않음)
 - [x] T3.13 (설계상 보장) Phase 3에서 register는 발송기를 호출하지 않으므로(발송은 워커 전담) 발송 지연이 API에 영향을 줄 수 없다 — T3.12가 이 분리를 입증. 지연 주입 기반 명시 테스트는 주입 가능한 발송기가 생기는 Phase 4(T4.x)에서 수행 (NFR-1)
 - [x] T3.14 통합 테스트: 배치 크기(2) 초과 5건 → 첫 폴링은 2건 제한, 여러 폴링에 걸쳐 전량 SENT
@@ -117,8 +117,8 @@
 
 ### 재시도
 
-- [x] T4.6 `BackoffPolicy` 순수 함수: `notification.retry.backoff`(기본 30s/2m/10m) 기반, 시도 번호→대기 시간(목록 초과 시 마지막 값 고정). `NotificationProperties.Retry`(maxAttempts, backoff) 바인딩, `NotificationInserter`가 설정값 maxAttempts 사용. 단위 테스트 2건 (T4.15 포함)
-- [x] T4.7 `NotificationResultRecorder` 확장: recordSuccess→SENT / recordFailure(retryable & attempt<max→scheduleRetry(백오프) / 그 외→markFailed). 워커가 Transient/Permanent 예외를 잡아 분기
+- [x] T4.6 `BackoffPolicy` 순수 함수: `notification.retry.backoff` 기반 시도 번호별 대기 시간 계산. `NotificationCreationService`가 생성 시 maxAttempts 저장
+- [x] T4.7 `NotificationTransactionService`가 일시 실패는 PENDING으로 예약하고 영구 실패·예산 소진은 FAILED로 기록
 - [x] T4.8 attempt 기록: `NotificationAttemptRepository` + 매 시도를 성공/실패 이력으로 TX2와 같은 트랜잭션에 기록 (startedAt=processing_started_at, attemptNo, error)
 - [x] T4.9 `GET /api/notifications/{id}` 응답에 `attempts` 배열 포함 (attemptNo/success/started·finishedAt/errorMessage). `NotificationDetail`(notification+attempts)로 조회, 테스트로 재시도 3건 이력 확인 (FR-2 완성)
 
@@ -157,10 +157,10 @@
 
 ### 스턱 회수
 
-- [x] T5.1 `claim_token` UUID + `ClaimedNotification` 도입. 결과 조건부 UPDATE가 `(id, PROCESSING, attemptNo, claimToken)`에 모두 일치할 때만 상태·attempt 이력을 기록하고, 회수 후 도착한 stale 결과는 폐기
+- [x] T5.1 `claim_token` UUID + `ClaimedNotification` 도입. 결과 조건부 UPDATE가 `(id, PROCESSING, claimToken)`에 일치할 때만 상태·attempt 이력을 기록하고 stale 결과는 폐기
 - [x] T5.2 스턱 회수 스케줄러: `PROCESSING AND processing_started_at < now - threshold` → `FOR UPDATE SKIP LOCKED`로 PENDING 복귀(attempt_count 유지), 실패 attempt와 회수 로그 기록
 - [x] T5.3 스턱 임계(`notification.stuck-threshold`, 기본 5분)와 회수 주기(`stuck-recovery-interval`, 기본 30초) 설정·양수 검증
-- [x] T5.3a executor backlog 오판 방지: semaphore로 실제 워커 수만큼만 클레임하고 executor queue를 0으로 설정. 실행 전 대기 작업을 PROCESSING으로 만들지 않음
+- [x] T5.3a executor backlog 오판 방지: executor의 빈 실행 슬롯만큼만 claim하고 queue를 0으로 설정
 
 ### 검증
 
@@ -169,7 +169,7 @@
 - [x] T5.6 재시작 내구성 테스트: PENDING/스턱 PROCESSING 데이터를 DB에 심고 동일 DB를 보는 새 ApplicationContext 기동 → 회수 후 전량 SENT
 - [x] T5.7 다중 인스턴스 상당 테스트: PENDING 100건 + 클레임 주체 4개 동시 실행 → 전량 SENT, attempt 100건, 중복 0·누락 0. 큐 클레임/회수 TX는 `READ_COMMITTED`로 설정해 MySQL REPEATABLE_READ의 범위 잠금 deadlock 완화
 - [x] T5.7a 워커 4개를 latch로 점유 → 첫 poll 4건만 PROCESSING, 추가 poll 0건, 나머지는 PENDING 유지. 워커가 막힌 동안에도 POST 202 확인(NFR-1)
-- [x] T5.8 ⛳ 전체 테스트 통과(81건)
+- [x] T5.8 당시 전체 테스트 통과(81건). Phase 5.5 중 중복 구현 전용 테스트 제거 후 현재 72건
 
 ---
 
@@ -189,7 +189,7 @@
 - [x] claim token 중심으로 세대 검증 단순화
 - [x] scheduler 전용 pool 및 중복 설정 제거
 - [x] 엔티티와 bulk UPDATE에 중복된 상태 전이 정리
-- [ ] 구조 종속 테스트와 문서 정리
+- [x] 구조 종속 테스트와 문서 정리
 
 ---
 
