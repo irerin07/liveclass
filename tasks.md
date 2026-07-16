@@ -197,11 +197,11 @@
 
 - [x] T6.1 Querydsl 동적 쿼리: 수신자별 목록, `read` 필터(IN_APP), 최신순, 페이지네이션 (`BooleanBuilder` + offset/limit + count)
 - [x] T6.2 `GET /api/users/{userId}/notifications` API + 응답 DTO
-- [ ] T6.3 읽음 처리: 벌크 조건부 UPDATE (`SET read_at = :now WHERE id = :id AND read_at IS NULL`) — 0 row여도 200 (멱등)
-- [ ] T6.4 `PATCH /api/notifications/{id}/read` API — EMAIL 대상이면 400 (`CHANNEL_NOT_SUPPORTED`), 404 처리
+- [x] T6.3 읽음 처리: 벌크 조건부 UPDATE (`SET read_at = :now WHERE id = :id AND read_at IS NULL`) — 0 row여도 200 (멱등)
+- [x] T6.4 `PATCH /api/notifications/{id}/read` API — EMAIL 대상이면 400 (`CHANNEL_NOT_SUPPORTED`), 404 처리
 - [x] T6.5 통합 테스트: 필터/페이지네이션 동작
-- [ ] T6.6 동시성 테스트: 동시 읽음 요청 N개 → `read_at` 1회만 기록, 전부 200
-- [ ] T6.7 ⛳ 전체 테스트 통과 + **커밋** (`feat: 사용자 알림 목록 조회 및 읽음 처리`)
+- [x] T6.6 동시성 테스트: 동시 읽음 요청 N개 → `read_at` 1회만 기록, 전부 200
+- [x] T6.7 ⛳ 전체 테스트 통과(81건) + **커밋** (`feat: 사용자 알림 목록 조회 및 읽음 처리`)
 
 ---
 

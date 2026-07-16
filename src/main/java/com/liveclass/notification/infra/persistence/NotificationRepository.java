@@ -13,6 +13,14 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
 
     Optional<Notification> findByIdempotencyKey(String idempotencyKey);
 
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            UPDATE Notification n
+               SET n.readAt = :now, n.updatedAt = :now
+             WHERE n.id = :id AND n.readAt IS NULL
+            """)
+    int markReadIfUnread(@Param("id") Long id, @Param("now") Instant now);
+
     /**
      * 발송 가능한 알림을 배치로 <b>클레임</b>한다 (spec §5.1).
      *
