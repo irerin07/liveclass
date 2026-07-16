@@ -17,8 +17,8 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 /**
- * 알림 애그리거트. 상태 전이(spec §6)는 반드시 이 클래스의 전이 메서드를 통해서만
- * 일어나며, 정의되지 않은 전이는 {@link InvalidStateTransitionException}을 던진다.
+ * 알림 상태와 처리 메타데이터. claim과 stuck recovery는 엔티티 메서드로 수행하고,
+ * worker 결과는 claim token을 검사하는 repository 조건부 UPDATE로 반영한다.
  */
 @Entity
 @Table(name = "notifications")

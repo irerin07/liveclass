@@ -62,7 +62,7 @@
 
 ## Phase 2 — 멱등성 (FR-6)
 
-- [x] T2.1 멱등성 키 생성기: `type:refType:refId:receiverId:channel`, `Idempotency-Key` 헤더 오버라이드 지원. 저장 키는 SHA-256 해시(원시 조합이 컬럼 200자 초과 가능·구분자 충돌 방지) (spec §5.3)
+- [x] T2.1 멱등성 키 생성기: 필드별 `길이:값` 인코딩, 명시적/자동 키 namespace 분리, `Idempotency-Key` 헤더 오버라이드 지원. 저장 키는 SHA-256 해시 (spec §5.3)
 - [x] T2.2 등록 흐름 1차 방어: 사전 조회(`findByIdempotencyKey`) → 존재 시 `202 + 기존 ID + duplicated: true`. 컨트롤러 `Idempotency-Key` 헤더 배선 + 서비스 키 생성/사전 조회
 - [x] T2.3 등록 흐름 2차 방어: `NotificationCreationService`의 독립 트랜잭션으로 INSERT 격리, orchestration 서비스는 트랜잭션 밖에서 UNIQUE 충돌을 처리하고 기존 행 반환 (decisions.md D-1)
 - [x] T2.4 컨트롤러 상태 코드 분기 제거 → 신규·중복 항상 202 (T2.2에 포함, 리뷰 코멘트 2·3 반영, decisions.md D-1)
@@ -144,7 +144,7 @@
 - [x] H2 `LoggingEmailSender` 안전 파싱: `fail-<n>-times-*`의 n이 int 범위 초과·형식 오류면 `null` 반환 → 실패 주입 없이 정상 발송. 단위 테스트 추가
 - [x] H3 설정 fail-fast: `NotificationProperties` `@Validated` + `@Min`/`@NotEmpty` + 양수 Duration 검증(compact constructor). 잘못된 설정(빈/0 backoff, max-attempts=0, batch-size=0)은 기동 실패
 - [x] H4 graceful shutdown: 워커 executor `setWaitForTasksToCompleteOnShutdown(true)` + `awaitTerminationSeconds(30)` (종료 시 큐 대기 작업 유실 완화, 강제 종료는 스턱 회수가 담당)
-- [x] H5 `UNIQUE(notification_id, attempt_no)` 제약(schema.sql): 스턱 회수·늦은 결과 경쟁 시 동일 시도 번호 중복 기록을 DB가 차단. 정상 흐름(attempt 1·2·3 구분)에는 영향 없음 확인
+- [x] H5 `UNIQUE(notification_id, attempt_no)` 제약(Flyway V1): 스턱 회수·늦은 결과 경쟁 시 동일 시도 번호 중복 기록을 DB가 차단. 정상 흐름(attempt 1·2·3 구분)에는 영향 없음 확인
 - [x] H6 payload 크기 상한 64KB: `RegisterNotificationRequest`에 `@AssertTrue` 검증 → 초과 시 400. 메모리·저장·직렬화 비용 보호. 테스트 1건(70KB → 400)
 - [x] H7 멱등성 payload 검증: **명시적 `Idempotency-Key` 재사용 시에만** payload를 구조적 JSON 동등성(`ObjectMapper.readTree().equals()`, 필드 순서 무시)으로 비교 → 다르면 422. 내용 기반 키는 §7.1대로 payload 무시. 테스트 3건(다른 payload→422, 필드 순서만 다름→재생)
 - [x] H8 ⛳ 전체 테스트 통과(74건) + **커밋/푸시**
@@ -169,7 +169,7 @@
 - [x] T5.6 재시작 내구성 테스트: PENDING/스턱 PROCESSING 데이터를 DB에 심고 동일 DB를 보는 새 ApplicationContext 기동 → 회수 후 전량 SENT
 - [x] T5.7 다중 인스턴스 상당 테스트: PENDING 100건 + 클레임 주체 4개 동시 실행 → 전량 SENT, attempt 100건, 중복 0·누락 0. 큐 클레임/회수 TX는 `READ_COMMITTED`로 설정해 MySQL REPEATABLE_READ의 범위 잠금 deadlock 완화
 - [x] T5.7a 워커 4개를 latch로 점유 → 첫 poll 4건만 PROCESSING, 추가 poll 0건, 나머지는 PENDING 유지. 워커가 막힌 동안에도 POST 202 확인(NFR-1)
-- [x] T5.8 당시 전체 테스트 통과(81건). Phase 5.5 중 중복 구현 전용 테스트 제거 후 현재 72건
+- [x] T5.8 당시 전체 테스트 통과(81건). Phase 5.5 정리와 멱등 키 경계 테스트 반영 후 현재 74건
 
 ---
 

@@ -49,11 +49,9 @@ public class NotificationService {
 
         try {
             return RegistrationResult.created(creationService.create(key, command));
-        } catch (DataIntegrityViolationException duplicate) {
+        } catch (DataIntegrityViolationException integrityViolation) {
             Notification winner = repository.findByIdempotencyKey(key)
-                    .orElseThrow(() -> new IllegalStateException(
-                            "멱등성 키 제약 위반이 발생했으나 기존 행을 찾을 수 없음: key=" + key,
-                            duplicate));
+                    .orElseThrow(() -> integrityViolation);
             return asDuplicate(winner, command, explicitKeyUsed);
         }
     }
