@@ -2,11 +2,14 @@ package com.liveclass.notification.application;
 
 import com.liveclass.notification.domain.Notification;
 import com.liveclass.notification.infra.persistence.NotificationAttemptRepository;
+import com.liveclass.notification.infra.persistence.NotificationQueryRepository;
 import com.liveclass.notification.infra.persistence.NotificationRepository;
 import java.util.Objects;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -18,6 +21,7 @@ public class NotificationService {
 
     private final NotificationRepository repository;
     private final NotificationAttemptRepository attemptRepository;
+    private final NotificationQueryRepository queryRepository;
     private final IdempotencyKeyGenerator keyGenerator;
     private final NotificationCreationService creationService;
     private final ObjectMapper objectMapper;
@@ -100,5 +104,10 @@ public class NotificationService {
                 .orElseThrow(() -> new NotificationNotFoundException(id));
         return new NotificationDetail(notification,
                 attemptRepository.findByNotificationIdOrderByAttemptNo(id));
+    }
+
+    @Transactional(readOnly = true)
+    public Page<Notification> list(String receiverId, Boolean read, Pageable pageable) {
+        return queryRepository.findByReceiver(receiverId, read, pageable);
     }
 }
