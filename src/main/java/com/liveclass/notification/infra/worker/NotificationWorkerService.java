@@ -5,12 +5,10 @@ import com.liveclass.notification.application.recipient.RecipientStatusPort;
 import com.liveclass.notification.application.sender.NotificationSenderRouter;
 import com.liveclass.notification.application.sender.PermanentSendException;
 import com.liveclass.notification.application.sender.TransientSendException;
-import com.liveclass.notification.config.NotificationProperties;
 import com.liveclass.notification.domain.Notification;
 import com.liveclass.notification.domain.NotificationStatus;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.Semaphore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -27,40 +25,29 @@ public class NotificationWorkerService {
     private final RecipientStatusPort recipientStatusPort;
     private final NotificationSenderRouter senderRouter;
     private final ThreadPoolTaskExecutor workerExecutor;
-    private final Semaphore workerPermits;
 
     public NotificationWorkerService(
             NotificationTransactionService transactionService,
             RecipientStatusPort recipientStatusPort,
             NotificationSenderRouter senderRouter,
-            @Qualifier("notificationWorkerExecutor") ThreadPoolTaskExecutor workerExecutor,
-            NotificationProperties properties) {
+            @Qualifier("notificationWorkerExecutor") ThreadPoolTaskExecutor workerExecutor) {
         this.transactionService = transactionService;
         this.recipientStatusPort = recipientStatusPort;
         this.senderRouter = senderRouter;
         this.workerExecutor = workerExecutor;
-        this.workerPermits = new Semaphore(properties.workerPoolSize());
     }
 
     public int processBatch() {
-        int permits = acquireAvailablePermits();
-        if (permits == 0) {
+        int availableWorkers = workerExecutor.getMaxPoolSize() - workerExecutor.getActiveCount();
+        if (availableWorkers <= 0) {
             return 0;
         }
 
-        List<ClaimedNotification> claimed = transactionService.claimBatch(permits);
-        workerPermits.release(permits - claimed.size());
+        List<ClaimedNotification> claimed = transactionService.claimBatch(availableWorkers);
         for (ClaimedNotification claim : claimed) {
             try {
-                workerExecutor.execute(() -> {
-                    try {
-                        process(claim);
-                    } finally {
-                        workerPermits.release();
-                    }
-                });
+                workerExecutor.execute(() -> process(claim));
             } catch (RuntimeException rejected) {
-                workerPermits.release();
                 log.error("클레임한 알림을 워커에 제출하지 못함 id={} - 스턱 회수 대기",
                         claim.id(), rejected);
             }
@@ -125,11 +112,4 @@ public class NotificationWorkerService {
         }
     }
 
-    private int acquireAvailablePermits() {
-        int acquired = 0;
-        while (workerPermits.tryAcquire()) {
-            acquired++;
-        }
-        return acquired;
-    }
 }
