@@ -70,7 +70,6 @@ public class NotificationWorkerService {
                         "처리 대상 알림을 찾을 수 없음: id=" + claim.id()));
 
         if (notification.getStatus() != NotificationStatus.PROCESSING
-                || notification.getAttemptCount() != claim.attemptNo()
                 || !Objects.equals(notification.getClaimToken(), claim.claimToken())) {
             log.info("발송 전 stale 클레임 폐기 id={} attempt={}", claim.id(), claim.attemptNo());
             return;
