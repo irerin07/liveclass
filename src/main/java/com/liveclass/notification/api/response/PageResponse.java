@@ -1,4 +1,4 @@
-package com.liveclass.notification.api;
+package com.liveclass.notification.api.response;
 
 import java.util.List;
 import org.springframework.data.domain.Page;

@@ -1,4 +1,4 @@
-package com.liveclass.notification.application;
+package com.liveclass.notification.application.exception;
 
 public class ChannelNotSupportedException extends RuntimeException {
 

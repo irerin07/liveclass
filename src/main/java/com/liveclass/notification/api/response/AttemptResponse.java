@@ -1,4 +1,4 @@
-package com.liveclass.notification.api;
+package com.liveclass.notification.api.response;
 
 import com.liveclass.notification.domain.NotificationAttempt;
 import java.time.Instant;

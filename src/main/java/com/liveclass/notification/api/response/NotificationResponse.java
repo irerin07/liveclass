@@ -1,6 +1,6 @@
-package com.liveclass.notification.api;
+package com.liveclass.notification.api.response;
 
-import com.liveclass.notification.application.NotificationDetail;
+import com.liveclass.notification.application.result.NotificationDetail;
 import com.liveclass.notification.domain.Channel;
 import com.liveclass.notification.domain.Notification;
 import com.liveclass.notification.domain.NotificationStatus;

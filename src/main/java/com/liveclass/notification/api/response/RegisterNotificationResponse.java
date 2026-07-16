@@ -1,6 +1,6 @@
-package com.liveclass.notification.api;
+package com.liveclass.notification.api.response;
 
-import com.liveclass.notification.application.RegistrationResult;
+import com.liveclass.notification.application.result.RegistrationResult;
 import com.liveclass.notification.domain.NotificationStatus;
 
 public record RegisterNotificationResponse(

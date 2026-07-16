@@ -1,4 +1,4 @@
-package com.liveclass.notification.application;
+package com.liveclass.notification.application.command;
 
 import com.liveclass.notification.domain.Channel;
 import com.liveclass.notification.domain.NotificationType;

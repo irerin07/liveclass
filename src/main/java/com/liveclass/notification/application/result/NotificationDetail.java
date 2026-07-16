@@ -1,4 +1,4 @@
-package com.liveclass.notification.application;
+package com.liveclass.notification.application.result;
 
 import com.liveclass.notification.domain.Notification;
 import com.liveclass.notification.domain.NotificationAttempt;

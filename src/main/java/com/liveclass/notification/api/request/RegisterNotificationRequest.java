@@ -1,8 +1,8 @@
-package com.liveclass.notification.api;
+package com.liveclass.notification.api.request;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import tools.jackson.databind.JsonNode;
-import com.liveclass.notification.application.RegisterNotificationCommand;
+import com.liveclass.notification.application.command.RegisterNotificationCommand;
 import com.liveclass.notification.domain.Channel;
 import com.liveclass.notification.domain.NotificationType;
 import jakarta.validation.constraints.AssertTrue;

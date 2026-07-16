@@ -1,5 +1,6 @@
 package com.liveclass.notification.application;
 
+import com.liveclass.notification.application.command.RegisterNotificationCommand;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
