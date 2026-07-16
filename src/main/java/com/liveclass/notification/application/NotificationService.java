@@ -1,12 +1,17 @@
 package com.liveclass.notification.application;
 
+import com.liveclass.notification.domain.Channel;
 import com.liveclass.notification.domain.Notification;
 import com.liveclass.notification.infra.persistence.NotificationAttemptRepository;
+import com.liveclass.notification.infra.persistence.NotificationQueryRepository;
 import com.liveclass.notification.infra.persistence.NotificationRepository;
+import java.time.Clock;
 import java.util.Objects;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -18,9 +23,11 @@ public class NotificationService {
 
     private final NotificationRepository repository;
     private final NotificationAttemptRepository attemptRepository;
+    private final NotificationQueryRepository queryRepository;
     private final IdempotencyKeyGenerator keyGenerator;
     private final NotificationCreationService creationService;
     private final ObjectMapper objectMapper;
+    private final Clock clock;
 
     /**
      * 알림 발송 요청 접수. 저장만 하고 즉시 반환한다 — 발송은 워커(Phase 3)의 몫이다.
@@ -100,5 +107,20 @@ public class NotificationService {
                 .orElseThrow(() -> new NotificationNotFoundException(id));
         return new NotificationDetail(notification,
                 attemptRepository.findByNotificationIdOrderByAttemptNo(id));
+    }
+
+    @Transactional(readOnly = true)
+    public Page<Notification> list(String receiverId, Boolean read, Pageable pageable) {
+        return queryRepository.findByReceiver(receiverId, read, pageable);
+    }
+
+    @Transactional
+    public void markRead(Long id) {
+        Notification notification = repository.findById(id)
+                .orElseThrow(() -> new NotificationNotFoundException(id));
+        if (notification.getChannel() != Channel.IN_APP) {
+            throw new ChannelNotSupportedException();
+        }
+        repository.markReadIfUnread(id, clock.instant());
     }
 }

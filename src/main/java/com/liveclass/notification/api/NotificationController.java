@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -35,5 +36,11 @@ public class NotificationController {
     @GetMapping("/{id}")
     public NotificationResponse get(@PathVariable Long id) {
         return NotificationResponse.from(notificationService.getDetail(id));
+    }
+
+    @PatchMapping("/{id}/read")
+    public ResponseEntity<Void> markRead(@PathVariable Long id) {
+        notificationService.markRead(id);
+        return ResponseEntity.ok().build();
     }
 }

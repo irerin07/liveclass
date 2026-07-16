@@ -1,5 +1,6 @@
 package com.liveclass.notification.api;
 
+import com.liveclass.notification.application.ChannelNotSupportedException;
 import com.liveclass.notification.application.IdempotencyKeyMisuseException;
 import com.liveclass.notification.application.NotificationNotFoundException;
 import org.springframework.http.HttpStatus;
@@ -22,6 +23,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleKeyMisuse(IdempotencyKeyMisuseException e) {
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
                 .body(new ErrorResponse("IDEMPOTENCY_KEY_MISUSE", e.getMessage()));
+    }
+
+    @ExceptionHandler(ChannelNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleChannelNotSupported(ChannelNotSupportedException e) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponse("CHANNEL_NOT_SUPPORTED", e.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
