@@ -1,344 +1,439 @@
-# 백엔드 셀 채용 과제
+# 알림 발송 시스템
 
-## 개요
+과제 C의 비동기 알림 발송 시스템입니다. API는 알림 요청을 DB에 `PENDING`으로 저장하고
+즉시 응답하며, 별도 worker가 EMAIL 또는 IN_APP 발송을 처리합니다. 중복 요청, 자동
+재시도, 서버 재시작, stuck worker, 다중 인스턴스 동시 처리를 실제 MySQL에서 검증합니다.
 
-본 과제는 백엔드 개발자 채용 과정에서 지원자의 실무 역량을 평가하기 위해 설계되었습니다. 3개의 과제 중 1개를 선택하여 제출하며, AI 도구 활용은 허용되지만 결과물에 대한 판단과 책임은 지원자 본인에게 있습니다.
-
-## 과제 목록
-
-| 과제                  | 유형             | 핵심 키워드                |
-| ------------------- | -------------- | --------------------- |
-| 과제 A - 수강 신청 시스템    | CRUD + 비즈니스 규칙 | 상태 전이, 정원 관리, 동시성 제어  |
-| 과제 B - 크리에이터 정산 API | 데이터 처리 / 정산    | 집계 정확성, 경계값 처리, 쿼리 설계 |
-| 과제 C - 알림 발송 시스템    | 이벤트 / 비동기      | 멱등성, 재시도 정책, 운영 고려    |
-
-## AI 사용 정책
-
-* AI 도구 사용 가능합니다.
-* 단, 제출물에는 본인의 판단과 검증 결과가 반영되어야 합니다.
-* README 또는 별도 문서에 AI 활용 범위를 간단히 기재해 주세요.
-* 그대로 복사한 산출물이 아니라, 본인이 이해하고 수정/검증한 결과물이어야 합니다.
-* AI 사용 자체는 감점 요소가 아닙니다. AI를 사용한 후 결과물을 얼마나 자기 것으로 만들었는지를 봅니다.
-
-## 제약 사항
-
-* Spring Boot (Java 또는 Kotlin) 사용
-* JPA 또는 MyBatis 중 선택 가능
-* H2 / MySQL / PostgreSQL 중 선택 가능
-* 인증/인가는 간략히 처리해도 무방 (userId를 헤더나 파라미터로 전달하는 방식도 허용)
-
-## 제출 기한
-
-본 페이지 최초 접속일 기준 5일 이내 제출 (마감일은 상단에 표시됩니다)
-
-## 제출 방법
-
-* GitHub / GitLab 등 공개(Public) repository URL 제출
-* main 브랜치 기준 실행 가능 상태
-* 리포지토리는 Public으로 설정해 주세요 (비공개 리포는 평가가 지연될 수 있습니다)
-
-## 필수 제출물
-
-* Git repository URL (커밋 히스토리 포함)
-* README.md (하단 템플릿 참고)
-* 소스 코드 및 테스트 코드
-* 실행 방법 (Docker 또는 로컬)
-* API 명세 또는 샘플 요청/응답
-* DB 스키마 또는 ERD 설명
-* AI 사용 내역 간단 기재
-
-## README 템플릿 (필수 포함 항목)
-
-```markdown
-## 프로젝트 개요
 ## 기술 스택
+
+- Java 21, Spring Boot 4.0.7
+- Spring MVC, Spring Data JPA, Querydsl 5.1
+- MySQL 8, Flyway
+- JUnit 5, Testcontainers, Awaitility
+- Gradle, Docker Compose
+
 ## 실행 방법
-## API 목록 및 예시
-## 데이터 모델 설명
-## 요구사항 해석 및 가정
-## 설계 결정과 이유
-## 테스트 실행 방법
-## 미구현 / 제약사항
-## AI 활용 범위
+
+### Docker Compose
+
+Docker만 설치되어 있으면 애플리케이션과 MySQL을 함께 실행할 수 있습니다.
+
+```bash
+docker compose up --build
 ```
 
-# 과제 A 상세 보기
+기동 확인:
 
-## 과제 A — 수강 신청 시스템
+```bash
+curl http://localhost:8080/actuator/health
+```
 
-유형: CRUD + 비즈니스 규칙형
+```json
+{"status":"UP"}
+```
 
-### 배경 시나리오
+종료:
 
-크리에이터(강사)는 강의를 개설하고 수강 정원, 가격, 기간을 설정합니다.
+```bash
+docker compose down
+```
 
-클래스메이트(수강생)는 원하는 강의에 수강 신청을 합니다.
+이전에 `schema.sql` 방식으로 생성한 개발 볼륨처럼 Flyway 이력이 없는 DB가 남아 있다면
+한 번만 볼륨을 초기화해야 합니다. 과제 제출 환경은 fresh DB를 기준으로 합니다.
 
-정원이 초과되면 신청이 불가합니다.
+```bash
+docker compose down -v
+docker compose up --build
+```
 
-신청 후 결제가 완료되어야 수강 확정됩니다.
+### 로컬 실행
 
-수강 확정 후 일정 기간 내에는 취소가 가능하며, 이후에는 불가합니다.
+Java 21과 Docker가 필요합니다.
 
-### 구현 범위
+```bash
+docker compose up -d mysql
+./gradlew bootRun
+```
 
-#### 필수 구현
+Windows에서는 `./gradlew` 대신 `gradlew.bat`을 사용할 수 있습니다.
 
-##### 1. 강의(Class) 관리
+## API 목록 및 예시
 
-* 강의 등록: 제목, 설명, 가격, 정원(최대 수강 인원), 수강 기간(시작일~종료일)
-* 강의 상태: DRAFT → OPEN → CLOSED
-* DRAFT: 초안 (신청 불가)
-* OPEN: 모집 중 (신청 가능)
-* CLOSED: 모집 마감 (신청 불가)
-* 강의 목록 조회 (상태 필터 가능)
-* 강의 상세 조회 (현재 신청 인원 포함)
+### 알림 등록
 
-##### 2. 수강 신청(Enrollment) 관리
+```http
+POST /api/notifications
+```
 
-* 수강 신청: 사용자가 강의에 신청
-* 신청 상태: PENDING → CONFIRMED → CANCELLED
-* PENDING: 신청 완료, 결제 대기
-* CONFIRMED: 결제 완료, 수강 확정
-* CANCELLED: 취소됨
-* 결제 확정 처리 (외부 결제 시스템 연동은 불필요 — 단순 상태 변경으로 대체)
-* 수강 취소
-* 내 수강 신청 목록 조회
+```bash
+curl -i -X POST http://localhost:8080/api/notifications \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: payment-2026-001-user-1-email" \
+  -d '{
+    "receiverId": "user-1",
+    "type": "PAYMENT_CONFIRMED",
+    "channel": "EMAIL",
+    "refType": "PAYMENT",
+    "refId": "payment-2026-001",
+    "payload": {"courseTitle": "Spring Boot 입문"}
+  }'
+```
 
-##### 3. 정원 관리 규칙
-
-* 강의별 최대 정원을 초과한 신청은 거부
-* 동시에 여러 사람이 마지막 자리에 신청하는 경우를 고려
-
-#### 선택 구현 (추가 점수)
-
-* 수강 취소 시 취소 가능 기간 제한 (예: 결제 후 7일 이내)
-* 대기열(waitlist) 기능
-* 강의별 수강생 목록 조회 (크리에이터 전용)
-* 신청 내역 페이지네이션
-
-# 과제 B 상세 보기
-
-## 과제 B — 크리에이터 정산 API
-
-유형: 데이터 처리 / 정산형
-
-### 배경 시나리오
-
-크리에이터는 강의를 개설하고 수강생에게 판매합니다.
-
-플랫폼은 판매 금액에서 수수료를 제하고 크리에이터에게 정산합니다.
-
-크리에이터는 자신의 정산 내역을 월별로 조회할 수 있습니다.
-
-플랫폼 운영자는 특정 기간의 전체 정산 현황을 집계할 수 있습니다.
-
-수강 취소가 발생하면 이미 계산된 정산 금액에서 환불분이 차감됩니다.
-
-### 구현 범위
-
-#### 필수 구현
-
-##### 1. 판매 내역(SaleRecord) 관리
-
-* 판매 내역 등록: 강의 ID, 수강생 ID, 결제 금액, 결제 일시
-* 취소 내역 등록: 원본 판매 내역 참조, 환불 금액, 취소 일시
-* 판매 내역 목록 조회 (크리에이터별, 기간 필터 가능)
-
-##### 2. 정산 금액 계산 API
-
-* 크리에이터별 월별 정산 조회
-* 요청: 크리에이터 ID, 조회 연월 (예: 2025-03)
-* 응답:
-
-  * 해당 월 총 판매 금액
-  * 취소/환불 금액
-  * 순 판매 금액 (= 총 판매 - 환불)
-  * 플랫폼 수수료 (순 판매의 20%)
-  * 정산 예정 금액 (= 순 판매 - 수수료)
-  * 판매 건수 / 취소 건수
-
-##### 정산 기간 기준 정의 (중요)
-
-* 기준: 결제 완료 일시 기준 (취소는 취소 일시 기준)
-* 월 경계: 해당 월 1일 00:00:00 ~ 말일 23:59:59 (KST 기준)
-
-##### 3. 정산 내역 집계 API (운영자용)
-
-* 기간 내 전체 크리에이터 정산 현황 목록
-* 요청: 시작일 ~ 종료일
-* 응답: 크리에이터별 정산 예정 금액 목록, 전체 합계
-
-#### 선택 구현 (추가 점수)
-
-* 정산 확정(settlement) 상태 관리: PENDING → CONFIRMED → PAID
-* 동일 기간 중복 정산 방지 로직
-* 정산 내역 엑셀 다운로드 (또는 CSV 응답)
-* 수수료율 변경 이력 관리 (과거 정산은 당시 수수료율 적용)
-
-### 과제별 제약 사항
-
-* 수수료율은 **일단 고정값 20%**로 구현 (변경 가능성을 설계에 반영하면 가산점)
-* 실제 결제 시스템 연동 불필요 (데이터 직접 삽입 또는 API로 등록)
-
-### 샘플 데이터
-
-아래 JSON을 애플리케이션 시작 시 또는 API를 통해 직접 삽입하여 기본 시나리오를 검증하세요. 이 데이터만으로는 모든 케이스를 커버하지 않습니다. 추가 데이터를 직접 등록하며 본인의 구현을 충분히 검증해 주세요.
+신규 요청과 중복 요청 모두 `202 Accepted`입니다. 중복 요청은 기존 ID와
+`duplicated: true`를 반환합니다.
 
 ```json
 {
-  "creators": [
-    { "id": "creator-1", "name": "김강사" },
-    { "id": "creator-2", "name": "이강사" },
-    { "id": "creator-3", "name": "박강사" }
-  ],
-  "courses": [
-    { "id": "course-1", "creatorId": "creator-1", "title": "Spring Boot 입문" },
-    { "id": "course-2", "creatorId": "creator-1", "title": "JPA 실전" },
-    { "id": "course-3", "creatorId": "creator-2", "title": "Kotlin 기초" },
-    { "id": "course-4", "creatorId": "creator-3", "title": "MSA 설계" }
-  ],
-  "saleRecords": [
+  "notificationId": 1,
+  "status": "PENDING",
+  "duplicated": false
+}
+```
+
+`Idempotency-Key`를 생략하면 다음 필드 조합으로 키를 자동 생성합니다.
+
+```text
+type + refType + refId + receiverId + channel
+```
+
+같은 명시적 키를 다른 요청 본문에 재사용하면 `422 IDEMPOTENCY_KEY_MISUSE`를 반환합니다.
+
+### 알림 상태 조회
+
+```bash
+curl http://localhost:8080/api/notifications/1
+```
+
+```json
+{
+  "id": 1,
+  "receiverId": "user-1",
+  "type": "PAYMENT_CONFIRMED",
+  "channel": "EMAIL",
+  "refType": "PAYMENT",
+  "refId": "payment-2026-001",
+  "status": "SENT",
+  "attemptCount": 1,
+  "maxAttempts": 3,
+  "lastError": null,
+  "sentAt": "2026-07-16T07:00:00Z",
+  "readAt": null,
+  "createdAt": "2026-07-16T06:59:59Z",
+  "attempts": [
     {
-      "_comment": "케이스 1 — 정상 판매 (취소 없음)",
-      "id": "sale-1",
-      "courseId": "course-1",
-      "studentId": "student-1",
-      "amount": 50000,
-      "paidAt": "2025-03-05T10:00:00+09:00"
-    },
-    {
-      "_comment": "케이스 2 — 정상 판매 (취소 없음)",
-      "id": "sale-2",
-      "courseId": "course-1",
-      "studentId": "student-2",
-      "amount": 50000,
-      "paidAt": "2025-03-15T14:30:00+09:00"
-    },
-    {
-      "_comment": "케이스 3 — 전액 환불 대상 판매",
-      "id": "sale-3",
-      "courseId": "course-2",
-      "studentId": "student-3",
-      "amount": 80000,
-      "paidAt": "2025-03-20T09:00:00+09:00"
-    },
-    {
-      "_comment": "케이스 4 — 부분 환불 대상 판매 (환불 금액 ≠ 원결제 금액)",
-      "id": "sale-4",
-      "courseId": "course-2",
-      "studentId": "student-4",
-      "amount": 80000,
-      "paidAt": "2025-03-22T11:00:00+09:00"
-    },
-    {
-      "_comment": "케이스 5 — 월 경계: 1월 말 결제 → 2월 초 취소",
-      "id": "sale-5",
-      "courseId": "course-3",
-      "studentId": "student-5",
-      "amount": 60000,
-      "paidAt": "2025-01-31T23:30:00+09:00"
-    },
-    {
-      "_comment": "케이스 6 — creator-2 정상 판매 (취소 없음)",
-      "id": "sale-6",
-      "courseId": "course-3",
-      "studentId": "student-6",
-      "amount": 60000,
-      "paidAt": "2025-03-10T16:00:00+09:00"
-    },
-    {
-      "_comment": "케이스 7 — creator-3 판매 (판매 내역 있지만 3월은 아님, 빈 월 조회 검증용)",
-      "id": "sale-7",
-      "courseId": "course-4",
-      "studentId": "student-7",
-      "amount": 120000,
-      "paidAt": "2025-02-14T10:00:00+09:00"
+      "attemptNo": 1,
+      "success": true,
+      "startedAt": "2026-07-16T07:00:00Z",
+      "finishedAt": "2026-07-16T07:00:00Z",
+      "errorMessage": null
     }
   ]
 }
 ```
 
-### 샘플 데이터로 검증해야 할 시나리오
+### 사용자 알림 목록
 
-| 시나리오                  | 관련 데이터                    | 확인 포인트                                                                |
-| --------------------- | ------------------------- | --------------------------------------------------------------------- |
-| creator-1의 2025-03 정산 | sale-1,2,3,4 / cancel-1,2 | 총 판매 260,000 / 환불 110,000 / 순 판매 150,000 / 수수료 30,000 / 정산 예정 120,000 |
-| 부분 환불 처리              | sale-4, cancel-2          | 환불액(30,000)이 원결제(80,000)보다 작은 경우 순 판매 반영                              |
-| 월 경계 취소               | sale-5, cancel-3          | sale-5는 1월 판매로, cancel-3은 2월 취소로 각각 해당 월 정산에 반영                       |
-| 빈 월 조회                | creator-3, 2025-03        | 판매 내역 없는 월 조회 시 0원 응답 또는 처리 방침 일관성 확인                                 |
+```bash
+curl "http://localhost:8080/api/users/user-1/notifications?page=0&size=20"
+```
 
-추가 데이터 가이드: 위 케이스 외에도 본인이 중요하다고 판단하는 시나리오(예: 동일 월 다수 취소, 미래 날짜 요청, 잘못된 연월 형식 등)를 직접 데이터로 등록하고 테스트하세요. 어떤 케이스를 추가했는지, 왜 추가했는지를 README에 기술하면 가산점이 됩니다.
+최신순으로 반환하며 `size`는 1~100입니다.
 
-# 과제 C 상세 보기
+```json
+{
+  "content": [
+    {
+      "id": 2,
+      "receiverId": "user-1",
+      "type": "COURSE_D1",
+      "channel": "IN_APP",
+      "refType": "COURSE",
+      "refId": "course-1",
+      "status": "SENT",
+      "readAt": null,
+      "createdAt": "2026-07-16T07:10:00Z"
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 1,
+  "totalPages": 1
+}
+```
 
-## 과제 C — 알림 발송 시스템
+읽음 필터는 IN_APP 알림에만 적용됩니다.
 
-유형: 이벤트 / 비동기 / 운영 고려형
+```bash
+curl "http://localhost:8080/api/users/user-1/notifications?read=false"
+curl "http://localhost:8080/api/users/user-1/notifications?read=true"
+```
 
-### 배경 시나리오
+### 읽음 처리
 
-수강 신청 완료, 결제 확정, 강의 시작 D-1, 취소 처리 등 다양한 이벤트가 발생합니다.
+```bash
+curl -i -X PATCH http://localhost:8080/api/notifications/2/read
+```
 
-이벤트 발생 시 사용자에게 이메일 또는 인앱 알림을 발송해야 합니다.
+IN_APP 알림만 지원합니다. 여러 기기가 동시에 요청해도 최초 요청만 `read_at`을 기록하며
+모든 요청은 `200 OK`를 받습니다. EMAIL 알림은 `400 CHANNEL_NOT_SUPPORTED`입니다.
 
-알림 처리 실패가 비즈니스 트랜잭션에 영향을 주어서는 안 됩니다. 단, 예외를 단순히 무시하는 방식으로 이를 달성해서는 안 됩니다.
+### 오류 응답
 
-네트워크 장애, 외부 이메일 서버 오류 등 일시적 장애에 대비해 재시도가 가능해야 합니다.
+```json
+{
+  "code": "NOTIFICATION_NOT_FOUND",
+  "message": "알림을 찾을 수 없습니다: id=999"
+}
+```
 
-동일한 이벤트에 대해 알림이 중복 발송되면 안 됩니다.
+주요 오류 코드는 다음과 같습니다.
 
-### 구현 범위
+| HTTP | 코드 | 의미 |
+| --- | --- | --- |
+| 400 | `INVALID_REQUEST` | 필수 필드, enum, payload 크기 또는 요청 형식 오류 |
+| 400 | `CHANNEL_NOT_SUPPORTED` | EMAIL 알림 읽음 처리 요청 |
+| 404 | `NOTIFICATION_NOT_FOUND` | 존재하지 않는 알림 |
+| 422 | `IDEMPOTENCY_KEY_MISUSE` | 같은 명시적 키를 다른 본문에 재사용 |
 
-#### 필수 구현
+## 비동기 처리 구조
 
-##### 1. 알림 발송 요청 API
+```mermaid
+flowchart LR
+    C["API caller"] --> A["NotificationController"]
+    A --> S["NotificationService"]
+    S --> DB[("MySQL notifications")]
+    P["NotificationScheduler"] --> W["NotificationWorkerService"]
+    W --> T["NotificationTransactionService"]
+    T -->|"claim: short TX"| DB
+    W -->|"outside TX"| R["RecipientStatusPort"]
+    W -->|"outside TX"| X["SenderRouter"]
+    X --> E["EMAIL logger"]
+    X --> I["IN_APP sender"]
+    W -->|"result: short TX"| T
+    T --> DB
+```
 
-* 알림 발송 요청 등록
-* 요청: 수신자 ID, 알림 타입, 참조 데이터(이벤트 ID, 강의 ID 등), 발송 채널(EMAIL / IN_APP)
-* 응답: 요청 접수 완료 (즉시 발송 아님)
-* 알림 상태 조회
-* 특정 알림 요청의 현재 상태 조회
-* 사용자 알림 목록 조회
-* 수신자 기준 알림 목록 (읽음/안읽음 필터 포함)
+처리는 세 경계로 분리됩니다.
 
-##### 2. 알림 처리 상태 관리
+1. 짧은 트랜잭션에서 `FOR UPDATE SKIP LOCKED`로 PENDING 행을 claim하고 PROCESSING으로 변경
+2. DB 트랜잭션 없이 수신자 상태 확인과 외부 발송 수행
+3. 별도 짧은 트랜잭션에서 상태 변경과 attempt 이력을 함께 기록
 
-* 알림 상태를 적절히 정의하고, 각 상태의 전이 조건을 설계하세요.
-* 발송 실패 시 재시도 정책과 최종 실패 처리 방식을 설계하세요.
-* 실패 사유는 기록되어야 합니다.
+외부 I/O 동안 DB lock을 유지하지 않습니다. 실제 메시지 브로커로 전환할 때는 DB polling
+진입점을 broker consumer로 교체하고 sender와 결과 기록 정책은 유지할 수 있습니다.
 
-##### 3. 중복 발송 방지
+## 상태와 재시도 정책
 
-* 동일 이벤트에 대해 알림이 중복 발송되어서는 안 됩니다.
-* 동시에 같은 요청이 여러 번 들어오는 경우도 고려하세요.
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING
+    PENDING --> PROCESSING: claim
+    PROCESSING --> SENT: success
+    PROCESSING --> PENDING: retryable failure / stuck recovery
+    PROCESSING --> FAILED: permanent failure or retry exhausted
+```
 
-##### 4. 비동기 처리 구조
+- 최대 시도 횟수: 3회
+- 기본 backoff: 30초, 2분, 10분
+- 재시도 대기: 별도 상태 대신 `PENDING + next_attempt_at`
+- 모든 시도: 성공 여부, 시작·종료 시각, 오류 메시지를 `notification_attempts`에 기록
+- 예상하지 못한 예외: retryable `UNKNOWN` 실패로 기록
+- PROCESSING이 기본 5분을 넘으면 stuck recovery가 PENDING으로 회수
 
-* 알림 발송은 API 요청 스레드와 분리되어 처리되어야 합니다.
-* 실제 메시지 브로커 없이 구현하되, 실제 운영 환경으로 전환 가능한 구조여야 합니다.
+worker가 회수 이후 늦게 결과를 반환할 수 있으므로 claim마다 UUID `claim_token`을 발급합니다.
+결과 UPDATE는 `(id, PROCESSING, claim_token)`이 모두 일치할 때만 성공합니다. 오래된 worker의
+결과는 상태와 attempt 이력을 변경하지 않습니다.
 
-##### 5. 운영 시나리오 대응
+worker executor는 대기 큐를 두지 않고 빈 실행 슬롯만큼만 claim합니다. 실행 전 대기 시간이
+stuck 시간으로 잘못 계산되는 것을 방지합니다.
 
-* 처리 중 상태가 일정 시간 이상 지속되는 경우 복구 방법을 설계하세요.
-* 서버 재시작 후에도 미처리 알림이 유실 없이 재처리되어야 합니다.
-* 다중 인스턴스 환경에서도 동일 알림이 중복 처리되어서는 안 됩니다.
+## 실패 및 복구 데모
 
-#### 선택 구현 (추가 점수)
+EMAIL mock sender는 receiver ID로 실패를 주입할 수 있습니다.
 
-* 발송 스케줄링: 특정 시각에 발송 예약 기능
-* 알림 템플릿 관리 (타입별 메시지 템플릿)
-* 읽음 처리: 여러 기기에서 동시에 읽음 처리 요청이 오면 어떻게 처리할 것인가?
-* 최종 실패 알림 보관 및 수동 재시도: 재시도 시 재시도 횟수 초기화 여부를 어떻게 정책화할 것인가?
+| receiverId 패턴 | 동작 |
+| --- | --- |
+| `fail-2-times-*` | 1·2회 일시 실패 후 3회 성공 |
+| `fail-permanent-*` | 첫 시도에서 영구 실패 |
+| `withdrawn-*` | 발송 없이 `RECIPIENT_GONE` 최종 실패 |
+| `ghost-*` | 발송 없이 `RECIPIENT_NOT_FOUND` 최종 실패 |
 
-### 과제별 제약 사항
+재시도 성공 예시:
 
-* 실제 이메일 발송 불필요 (Mock 또는 로그 출력으로 대체)
-* 실제 메시지 브로커 설치 불필요. 단, 실제 운영 환경으로 전환 가능한 구조여야 함
+```bash
+curl -X POST http://localhost:8080/api/notifications \
+  -H "Content-Type: application/json" \
+  -d '{
+    "receiverId": "fail-2-times-demo",
+    "type": "PAYMENT_CONFIRMED",
+    "channel": "EMAIL",
+    "refType": "PAYMENT",
+    "refId": "retry-demo-1"
+  }'
 
-### 추가 제출물
+curl http://localhost:8080/api/notifications/1
+```
 
-공통 필수 제출물 외에 아래 항목을 추가로 제출해 주세요.
+기본 backoff가 적용되므로 최종 성공까지 약 2분 30초가 필요합니다. 테스트에서는 설정을
+50ms로 덮어써 같은 흐름을 빠르고 결정적으로 검증합니다.
 
-* 비동기 처리 구조 및 재시도 정책 설명 문서 (README 또는 별도)
-* 요구사항 해석 및 개선 의견 — 요구사항을 어떻게 해석했는지, 개선하고 싶은 점이 있다면 자유롭게 기술
+## 멱등성과 동시성
+
+- 자동 키의 각 필드를 `문자열 길이:값`으로 인코딩해 필드에 `:`가 있어도 경계를 보존
+- 명시적 키와 자동 키를 `explicit:`, `generated:` namespace로 분리
+- 저장 키는 SHA-256 hex 64자로 고정
+- 사전 조회로 일반적인 중복을 빠르게 처리
+- `UNIQUE(idempotency_key)`로 동시 INSERT 경쟁을 최종 차단
+- UNIQUE 경쟁에서 진 요청은 기존 행을 다시 조회해 같은 ID로 `202` 응답
+- 읽음 처리는 `read_at IS NULL` 조건부 UPDATE로 동시 요청을 멱등 처리
+
+## 데이터 모델
+
+```mermaid
+erDiagram
+    NOTIFICATIONS ||--o{ NOTIFICATION_ATTEMPTS : has
+    NOTIFICATIONS {
+        bigint id PK
+        varchar idempotency_key UK
+        varchar receiver_id
+        varchar type
+        varchar channel
+        varchar ref_type
+        varchar ref_id
+        json payload
+        varchar status
+        int attempt_count
+        int max_attempts
+        datetime next_attempt_at
+        datetime processing_started_at
+        varchar claim_token
+        varchar last_error
+        datetime sent_at
+        datetime read_at
+        datetime created_at
+        datetime updated_at
+    }
+    NOTIFICATION_ATTEMPTS {
+        bigint id PK
+        bigint notification_id FK
+        int attempt_no
+        datetime started_at
+        datetime finished_at
+        boolean success
+        varchar error_message
+    }
+```
+
+주요 제약과 인덱스:
+
+- `UNIQUE(idempotency_key)`
+- `UNIQUE(notification_id, attempt_no)`
+- `(status, next_attempt_at)` claim 인덱스
+- `(receiver_id, created_at)` 목록 조회 인덱스
+
+스키마는 [Flyway V1](src/main/resources/db/migration/V1__init_schema.sql)에서 관리하고 JPA는
+`ddl-auto=validate`로 매핑 일치만 확인합니다.
+
+## 설정
+
+Spring 환경 변수나 설정 파일로 다음 값을 변경할 수 있습니다.
+
+| 설정 | 기본값 | 설명 |
+| --- | --- | --- |
+| `notification.polling-interval` | `1s` | worker polling 주기 |
+| `notification.batch-size` | `50` | 한 번의 최대 claim 수 |
+| `notification.worker-pool-size` | `4` | 발송 worker 수 |
+| `notification.stuck-threshold` | `5m` | PROCESSING 회수 기준 |
+| `notification.stuck-recovery-interval` | `30s` | stuck 검사 주기 |
+| `notification.retry.max-attempts` | `3` | 최대 자동 시도 횟수 |
+| `notification.retry.backoff` | `30s, 2m, 10m` | 실패 후 대기 시간 |
+
+0이나 음수 duration, 빈 backoff처럼 잘못된 설정은 기동 시 거부합니다.
+
+## 요구사항 해석 및 설계 결정
+
+### 동일 이벤트
+
+동일 이벤트는 `(type, refType, refId, receiverId, channel)`이 모두 같은 요청입니다. 같은
+이벤트의 EMAIL과 IN_APP은 서로 다른 알림으로 취급합니다. payload는 자동 키 구성에서
+제외하지만, 명시적 `Idempotency-Key`를 사용하면 본문 전체의 구조적 JSON 동등성을 확인합니다.
+
+### 중복 요청 응답
+
+중복은 오류가 아니라 이미 접수된 결과의 replay입니다. 네트워크 timeout 후 호출자가 다시
+요청해도 상태 조회에 필요한 동일 ID를 받을 수 있도록 신규와 중복 모두 `202`를 반환합니다.
+
+### 전달 보장
+
+발송과 DB 결과 기록은 하나의 원자적 트랜잭션이 아니므로 전달 보장은 at-least-once입니다.
+발송 성공 직후 프로세스가 종료되면 상태가 회수되어 실제 메시지가 다시 발송될 수 있습니다.
+실운영에서는 발송 게이트웨이에 idempotency key를 전달하거나 수신 측 dedupe를 추가합니다.
+
+### 수신 가능 여부
+
+접수 이후 사용자 상태가 바뀔 수 있으므로 발송 직전에 확인합니다. 탈퇴자는
+`RECIPIENT_GONE`, 미존재 사용자는 데이터 이상 가능성을 경고하고 `RECIPIENT_NOT_FOUND`로
+최종 실패 처리합니다. 실제 서비스에서는 거래성 알림과 마케팅 알림의 정책을 분리해야 합니다.
+
+운영 환경에서는 사용자 탈퇴 이벤트를 구독해 대기 중인 마케팅 알림을 `CANCELED`로 선제
+전환하고, 법적 보관 의무가 없는 payload는 삭제하거나 비식별화하는 정책이 추가로 필요합니다.
+반대로 결제·환불 같은 거래성 알림은 탈퇴 여부와 무관하게 전달해야 할 수 있으므로, 수신 가능
+정책은 사용자 상태만이 아니라 알림 타입까지 입력으로 받아야 합니다.
+
+자세한 결정 배경은 [decisions.md](decisions.md), 요구사항과 수용 기준은
+[spec.md](spec.md)에서 확인할 수 있습니다.
+
+## 테스트 실행 방법
+
+테스트는 Docker가 실행 중이어야 합니다. Testcontainers가 실제 MySQL 8을 시작합니다.
+
+```bash
+./gradlew test --no-daemon
+```
+
+캐시 없이 전체 테스트를 다시 실행하려면:
+
+```bash
+./gradlew test --no-daemon --rerun-tasks
+```
+
+현재 테스트는 총 81개이며 다음을 포함합니다.
+
+- 동일 키 10개 동시 등록 시 DB 행 1건과 동일 ID 응답
+- `FOR UPDATE SKIP LOCKED`와 4개 claimer 동시 처리
+- 일시 실패 재시도, 영구 실패, 설정 override
+- 느린 worker 중 API 즉시 응답과 executor capacity
+- stuck recovery와 오래된 worker 결과 폐기
+- 동일 DB를 사용하는 새 ApplicationContext 재기동 처리
+- 사용자 목록 최신순·페이지네이션·읽음 필터
+- 10개 동시 읽음 요청의 멱등성
+- Spring Boot 4, Hibernate 7, Querydsl 실제 쿼리 호환성
+
+## 미구현 및 제약사항
+
+- 실제 이메일 발송은 과제 제약에 따라 로그로 대체했습니다.
+- 메시지 브로커 대신 MySQL 테이블을 durable queue로 사용합니다.
+- 발송 예약, 템플릿 관리, 최종 실패 수동 재시도는 선택 요구사항이므로 구현하지 않았습니다.
+- 수동 재시도를 추가한다면 기존 이력을 보존하면서 retry cycle을 별도로 관리해야 합니다.
+  현재 `UNIQUE(notification_id, attempt_no)`에서 단순히 attempt_count를 0으로 초기화하면
+  기존 이력과 충돌합니다.
+- Flyway 이력이 없는 기존 스키마의 무중단 인수는 지원하지 않습니다. 제출 환경은 fresh DB이며,
+  기존 개발 볼륨은 `docker compose down -v`로 초기화합니다.
+- 단건 상태 조회의 attempt 이력은 최대 자동 시도 3회를 전제로 전체 반환합니다.
+
+필수 요구사항을 완성하고 선택 요구사항 중 동시 읽음 처리를 구현했습니다. 나머지 선택 기능은
+핵심 비동기 신뢰성 흐름과 제출 재현성을 우선하기 위해 범위에서 제외했습니다.
+
+## AI 활용 범위
+
+AI를 다음 범위에서 활용했습니다.
+
+- 요구사항을 `spec.md`, `plan.md`, `tasks.md`로 구조화
+- 구현 초안과 테스트 케이스 작성 보조
+- 트랜잭션 경계, 멱등성, stale worker, Flyway 설정에 대한 반복 코드 리뷰
+- 오버엔지니어링 요소 식별과 Phase 5.5 구조 단순화
+- README 초안과 구현·문서 일치 여부 점검
+
+설계 선택, 기능 범위, 리뷰 반영 여부는 직접 판단했고, 변경마다 Testcontainers 기반 전체 테스트와
+코드 대조를 수행했습니다. AI가 제안한 내용 중 기존 DB baseline, worker 세대 판별, 멱등 키
+직렬화처럼 문제가 발견된 부분은 원인을 재검토한 뒤 수정했습니다.
