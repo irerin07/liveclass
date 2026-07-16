@@ -27,7 +27,7 @@ class LoggingEmailSenderTest {
         for (int i = 1; i <= attempt; i++) {
             notification.claim(CLOCK);
             if (i < attempt) {
-                notification.scheduleRetry(CLOCK.instant(), "retry", CLOCK);
+                notification.recoverStuck("retry", CLOCK);
             }
         }
         return notification;

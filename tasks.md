@@ -188,7 +188,7 @@
 - [x] worker 용량 제어 정책 단일화
 - [x] claim token 중심으로 세대 검증 단순화
 - [x] scheduler 전용 pool 및 중복 설정 제거
-- [ ] 엔티티와 bulk UPDATE에 중복된 상태 전이 정리
+- [x] 엔티티와 bulk UPDATE에 중복된 상태 전이 정리
 - [ ] 구조 종속 테스트와 문서 정리
 
 ---
