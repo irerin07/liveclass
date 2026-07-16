@@ -145,7 +145,7 @@
 ### FR-7. 비동기 처리 구조
 
 - 발송은 API 요청 스레드와 분리된 워커(폴러 + 워커 스레드풀)가 수행한다.
-- 큐는 DB 테이블(아웃박스)이며, 인메모리 큐를 신뢰 저장소로 사용하지 않는다.
+- 큐는 DB 기반 durable work queue이며, 인메모리 큐를 신뢰 저장소로 사용하지 않는다.
 - 발송 처리(외부 호출)는 DB 트랜잭션 외부에서 수행한다 (§5.2).
 
 **AC**
@@ -164,7 +164,8 @@
 **AC**
 - [ ] processing_started_at이 임계 초과인 PROCESSING 행이 회수되어 재처리됨
 - [ ] PENDING 데이터 존재 상태에서 애플리케이션 재기동 → 자동 재처리
-- [ ] PENDING 100건 + 워커 4개 동시 폴링 → 각 알림 정확히 1회 처리 (중복/누락 0)
+- [ ] PENDING 100건 + 워커 4개 동시 폴링 → 각 알림이 동시에 중복 클레임되지 않고 누락 없이 처리됨
+- 외부 발송은 장애 시 재시도될 수 있으므로 at-least-once 의미를 가지며, 수신 측 멱등 처리가 필요하다.
 
 ### FR-9. Mock 발송기 및 실패 주입
 
@@ -204,7 +205,7 @@
 [API 레이어] ── 멱등성 검증 → notifications INSERT (PENDING) → 즉시 202
     │                              │
     │                              ▼
-    │                    [notifications 테이블 = 아웃박스 큐]
+    │                    [notifications 테이블 = durable work queue]
     │                              │
     │            ┌─────────────────┤ (다중 인스턴스 각각의 폴러가 경쟁)
     ▼            ▼                 ▼
@@ -260,18 +261,21 @@
 
 ### 5.4 브로커 전환 가능 구조
 
-소비 메커니즘을 포트로 추상화하여, 브로커 도입 시 어댑터 교체만으로 전환한다.
+현재는 `NotificationScheduler`가 DB의 durable work queue를 폴링하고
+`NotificationWorkerService`에 처리를 위임한다. 브로커를 도입할 때는 이 진입점을
+브로커 컨슈머로 교체하고, 수신자 검증·발송·결과 기록 정책은 그대로 재사용한다.
 
-| 포트 | 현재 어댑터 (과제) | 전환 후 어댑터 (운영) |
+| 역할 | 현재 구현 (과제) | 브로커 도입 후 |
 | --- | --- | --- |
-| NotificationEnqueuer | 아웃박스 INSERT | 아웃박스 INSERT (동일 — 트랜잭션 보장 위해 유지) |
-| (큐 전달) | 폴러가 직접 소비 | 아웃박스 릴레이 → 브로커 퍼블리시 |
-| NotificationWorker | DB 폴링 + SKIP LOCKED | 브로커 컨슈머 |
-| RecipientStatusPort (발송 직전 수신 가능 검증) | 패턴 기반 스텁 (`withdrawn-*`→WITHDRAWN, `ghost-*`→NOT_FOUND) | 사용자 서비스 조회 또는 사용자 상태 이벤트 프로젝션 |
-| NotificationSender | LoggingEmailClient / InAppSender | 실제 SMTP/푸시 클라이언트 |
+| 작업 저장·선점 | `notifications` 저장 + DB 폴링 + `FOR UPDATE SKIP LOCKED` | 브로커 발행 및 컨슈머 전달 정책으로 대체 |
+| 처리 진입점 | `NotificationScheduler` → `NotificationWorkerService` | Broker Consumer → 동일한 처리 흐름 |
+| 발송 직전 수신 가능 검증 | `RecipientStatusPort` 패턴 기반 스텁 | 사용자 서비스 조회 또는 사용자 상태 이벤트 프로젝션 |
+| 채널 발송 | `NotificationSender`의 EMAIL/IN_APP 구현 | 실제 SMTP·푸시 클라이언트 구현 |
+| 결과 기록 | claim token을 비교하는 조건부 상태 변경 + attempt 기록 | 동일한 상태 변경·재시도·stale 결과 폐기 정책 유지 |
 
-브로커 도입 후에도 아웃박스 테이블은 제거되지 않는다(원천 트랜잭션과 발송 요청의
-원자성 보장). 이 전환 시나리오는 README의 비동기 구조 설명 문서에 포함한다.
+현재 구현에는 별도의 `NotificationEnqueuer`나 outbox relay가 없다. 브로커 전환 시
+DB 작업 큐를 계속 병행할지, 트랜잭셔널 outbox를 새로 둘지는 브로커 발행의 원자성
+요구사항에 따라 결정한다.
 
 ### 5.5 데이터 모델
 

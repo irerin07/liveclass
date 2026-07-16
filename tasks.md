@@ -25,8 +25,8 @@
 ### 실행 환경
 
 - [x] T0.8 `docker-compose.yml` 작성: `mysql:8` (utf8mb4, 타임존 UTC) + 애플리케이션 서비스 + Dockerfile(멀티스테이지)
-- [x] T0.9 `application.yml` 기본 구성: 데이터소스(`connectionTimeZone=UTC`), JPA(`ddl-auto=validate`), sql init
-- [x] T0.10 `schema.sql` 초안: `notifications`, `notification_attempts` 테이블 + 인덱스 2종 + UNIQUE 제약 (spec §5.5 그대로)
+- [x] T0.9 `application.yml` 기본 구성: 데이터소스(`connectionTimeZone=UTC`), JPA(`ddl-auto=validate`), Flyway 활성화
+- [x] T0.10 Flyway `V1__init_schema.sql`: `notifications`, `notification_attempts` 테이블 + 인덱스 2종 + UNIQUE 제약 (spec §5.5 그대로)
 - [x] T0.11 compose MySQL + 앱 기동 → `/actuator/health` 200 UP 확인. T8.13에서 fresh DB 이미지 빌드와 API 시나리오까지 재검증
 
 ### 공통 기반
