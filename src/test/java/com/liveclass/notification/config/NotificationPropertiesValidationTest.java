@@ -54,12 +54,6 @@ class NotificationPropertiesValidationTest {
     }
 
     @Test
-    void scheduler_pool_size가_1이면_기동에_실패한다() {
-        runner.withPropertyValues("notification.scheduler-pool-size=1")
-                .run(context -> assertThat(context).hasFailed());
-    }
-
-    @Test
     void stuck_threshold가_0이면_기동에_실패한다() {
         runner.withPropertyValues("notification.stuck-threshold=0s")
                 .run(context -> assertThat(context).hasFailed());

@@ -89,7 +89,7 @@
 - [x] T3.6 `NotificationWorker` 빈: 트랜잭션 **없이** 발송(senderRouter) 수행 → 결과를 `NotificationResultRecorder`에 위임. 테스트 2건(EMAIL/IN_APP 처리 → SENT)
 - [x] T3.7 `NotificationResultRecorder` 빈: `@Transactional` recordSuccess로 SENT 전환 + sent_at 기록 (TX2). 세 빈 분리로 self-invocation 프록시 문제 회피. 재시도·실패·이력은 Phase 4
 - [x] T3.8 폴러: `NotificationPoller.pollOnce()`(클레임 → 워커 스레드풀 위임, 직접 호출 가능) + `ScheduledPoller`(`@Scheduled(fixedDelayString)` 트리거, `@Profile("!test")`). 파이프라인 테스트로 등록 → pollOnce → SENT 검증
-- [x] T3.9 스레드풀 구성(`WorkerConfig`): `ThreadPoolTaskExecutor`(워커, CallerRunsPolicy backpressure) + `ThreadPoolTaskScheduler` size ≥ 2 (NFR-4) + `@EnableScheduling`. `NotificationProperties`에 workerPoolSize/schedulerPoolSize 추가. 테스트는 `@ActiveProfiles("test")`로 스케줄 트리거 제외
+- [x] T3.9 스레드풀 구성(`WorkerConfig`): 발송 전용 `ThreadPoolTaskExecutor` + `@EnableScheduling`. 테스트는 `@ActiveProfiles("test")`로 스케줄 트리거 제외
 
 ### 검증
 
@@ -142,7 +142,7 @@
 
 - [x] H1 워커 generic 예외 처리: 예상 밖 `RuntimeException`을 잡아 retryable 실패로 기록(`UNKNOWN` 코드), 결과 기록 자체 실패 시 로그 후 스턱 회수에 위임. `@MockitoBean`으로 수신자 조회 예외 주입 → 고착 없이 재시도 소진 후 FAILED 검증
 - [x] H2 `LoggingEmailSender` 안전 파싱: `fail-<n>-times-*`의 n이 int 범위 초과·형식 오류면 `null` 반환 → 실패 주입 없이 정상 발송. 단위 테스트 추가
-- [x] H3 설정 fail-fast: `NotificationProperties` `@Validated` + `@Min`/`@NotEmpty` + 양수 Duration 검증(compact constructor). 잘못된 설정(빈/0 backoff, max-attempts=0, batch-size=0, scheduler<2)은 기동 실패. ApplicationContextRunner 테스트 6건
+- [x] H3 설정 fail-fast: `NotificationProperties` `@Validated` + `@Min`/`@NotEmpty` + 양수 Duration 검증(compact constructor). 잘못된 설정(빈/0 backoff, max-attempts=0, batch-size=0)은 기동 실패
 - [x] H4 graceful shutdown: 워커 executor `setWaitForTasksToCompleteOnShutdown(true)` + `awaitTerminationSeconds(30)` (종료 시 큐 대기 작업 유실 완화, 강제 종료는 스턱 회수가 담당)
 - [x] H5 `UNIQUE(notification_id, attempt_no)` 제약(schema.sql): 스턱 회수·늦은 결과 경쟁 시 동일 시도 번호 중복 기록을 DB가 차단. 정상 흐름(attempt 1·2·3 구분)에는 영향 없음 확인
 - [x] H6 payload 크기 상한 64KB: `RegisterNotificationRequest`에 `@AssertTrue` 검증 → 초과 시 400. 메모리·저장·직렬화 비용 보호. 테스트 1건(70KB → 400)
@@ -187,7 +187,7 @@
 - [x] 멱등 등록의 deadlock 재시도 단순화
 - [x] worker 용량 제어 정책 단일화
 - [x] claim token 중심으로 세대 검증 단순화
-- [ ] scheduler 전용 pool 및 중복 설정 제거
+- [x] scheduler 전용 pool 및 중복 설정 제거
 - [ ] 엔티티와 bulk UPDATE에 중복된 상태 전이 정리
 - [ ] 구조 종속 테스트와 문서 정리
 
