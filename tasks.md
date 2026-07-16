@@ -169,7 +169,7 @@
 - [x] T5.6 재시작 내구성 테스트: PENDING/스턱 PROCESSING 데이터를 DB에 심고 동일 DB를 보는 새 ApplicationContext 기동 → 회수 후 전량 SENT
 - [x] T5.7 다중 인스턴스 상당 테스트: PENDING 100건 + 클레임 주체 4개 동시 실행 → 전량 SENT, attempt 100건, 중복 0·누락 0. 큐 클레임/회수 TX는 `READ_COMMITTED`로 설정해 MySQL REPEATABLE_READ의 범위 잠금 deadlock 완화
 - [x] T5.7a 워커 4개를 latch로 점유 → 첫 poll 4건만 PROCESSING, 추가 poll 0건, 나머지는 PENDING 유지. 워커가 막힌 동안에도 POST 202 확인(NFR-1)
-- [x] T5.8 ⛳ 전체 테스트 통과(81건). 멱등성 유니크 인덱스 경쟁에서 MySQL deadlock victim이 발생하는 경로도 최대 3회 독립 트랜잭션 재시도로 보강
+- [x] T5.8 ⛳ 전체 테스트 통과(81건)
 
 ---
 
@@ -184,7 +184,7 @@
 
 ### B. 오버엔지니어링 제거
 
-- [ ] 멱등 등록의 deadlock 재시도 단순화
+- [x] 멱등 등록의 deadlock 재시도 단순화
 - [ ] worker 용량 제어 정책 단일화
 - [ ] claim token 중심으로 세대 검증 단순화
 - [ ] scheduler 전용 pool 및 중복 설정 제거

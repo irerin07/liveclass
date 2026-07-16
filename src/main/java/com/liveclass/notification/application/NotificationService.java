@@ -7,7 +7,6 @@ import java.util.Objects;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -48,27 +47,15 @@ public class NotificationService {
             return asDuplicate(existing.get(), command, explicitKeyUsed);
         }
 
-        CannotAcquireLockException lastDeadlock = null;
-        for (int attempt = 0; attempt < 3; attempt++) {
-            try {
-                return RegistrationResult.created(creationService.create(key, command));
-            } catch (DataIntegrityViolationException duplicate) {
-                Notification winner = repository.findByIdempotencyKey(key)
-                        .orElseThrow(() -> new IllegalStateException(
-                                "멱등성 키 제약 위반이 발생했으나 기존 행을 찾을 수 없음: key=" + key,
-                                duplicate));
-                return asDuplicate(winner, command, explicitKeyUsed);
-            } catch (CannotAcquireLockException deadlock) {
-                lastDeadlock = deadlock;
-                Optional<Notification> winner = repository.findByIdempotencyKey(key);
-                if (winner.isPresent()) {
-                    return asDuplicate(winner.get(), command, explicitKeyUsed);
-                }
-                // MySQL이 유니크 인덱스 경쟁의 한 트랜잭션을 deadlock victim으로 고른 경우.
-                // 독립 트랜잭션이 이미 롤백됐으므로 짧게 재시도한다.
-            }
+        try {
+            return RegistrationResult.created(creationService.create(key, command));
+        } catch (DataIntegrityViolationException duplicate) {
+            Notification winner = repository.findByIdempotencyKey(key)
+                    .orElseThrow(() -> new IllegalStateException(
+                            "멱등성 키 제약 위반이 발생했으나 기존 행을 찾을 수 없음: key=" + key,
+                            duplicate));
+            return asDuplicate(winner, command, explicitKeyUsed);
         }
-        throw lastDeadlock;
     }
 
     /**
