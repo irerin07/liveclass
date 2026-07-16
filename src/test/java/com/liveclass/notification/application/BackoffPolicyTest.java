@@ -12,7 +12,7 @@ class BackoffPolicyTest {
 
     private BackoffPolicy policy(Duration... delays) {
         NotificationProperties properties = new NotificationProperties(
-                Duration.ofSeconds(1), 50, 4, 2,
+                Duration.ofSeconds(1), 50, 4,
                 Duration.ofMinutes(5), Duration.ofSeconds(30),
                 new Retry(3, List.of(delays)));
         return new BackoffPolicy(properties);
