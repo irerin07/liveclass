@@ -130,52 +130,6 @@ public class Notification {
         this.updatedAt = now;
     }
 
-    /**
-     * PROCESSING → SENT. 발송 성공 (최종 상태).
-     */
-    public void markSent(Clock clock) {
-        require(status == NotificationStatus.PROCESSING, "markSent");
-        Instant now = clock.instant();
-        this.status = NotificationStatus.SENT;
-        this.sentAt = now;
-        this.processingStartedAt = null;
-        this.claimToken = null;
-        this.updatedAt = now;
-    }
-
-    /**
-     * PROCESSING → PENDING. 일시적 실패 후 재시도 예약.
-     * 시도 예산이 남아 있어야 한다 (attemptCount < maxAttempts).
-     */
-    public void scheduleRetry(Instant nextAttemptAt, String error, Clock clock) {
-        require(status == NotificationStatus.PROCESSING, "scheduleRetry");
-        if (attemptCount >= maxAttempts) {
-            throw new InvalidStateTransitionException(
-                    "시도 예산 소진 (attempt=" + attemptCount + ", max=" + maxAttempts
-                            + ") — scheduleRetry가 아니라 markFailed 대상입니다");
-        }
-        Instant now = clock.instant();
-        this.status = NotificationStatus.PENDING;
-        this.nextAttemptAt = nextAttemptAt;
-        this.lastError = truncate(error);
-        this.processingStartedAt = null;
-        this.claimToken = null;
-        this.updatedAt = now;
-    }
-
-    /**
-     * PROCESSING → FAILED. 최종 실패 (영구적 실패 또는 시도 예산 소진).
-     */
-    public void markFailed(String error, Clock clock) {
-        require(status == NotificationStatus.PROCESSING, "markFailed");
-        Instant now = clock.instant();
-        this.status = NotificationStatus.FAILED;
-        this.lastError = truncate(error);
-        this.processingStartedAt = null;
-        this.claimToken = null;
-        this.updatedAt = now;
-    }
-
     /** PROCESSING → PENDING. 사망한 워커의 클레임을 회수하되 시도 횟수는 유지한다. */
     public void recoverStuck(String reason, Clock clock) {
         require(status == NotificationStatus.PROCESSING, "recoverStuck");
