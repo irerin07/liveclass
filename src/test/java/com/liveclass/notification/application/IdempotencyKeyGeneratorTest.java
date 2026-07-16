@@ -71,8 +71,32 @@ class IdempotencyKeyGeneratorTest {
     }
 
     @Test
-    void 논리_키는_사람이_읽을_수_있는_조합이다() {
-        assertThat(generator.logicalKey(null, sample()))
-                .isEqualTo("PAYMENT_CONFIRMED:ENROLLMENT:enrollment-42:student-1:EMAIL");
+    void 구분자가_포함된_서로_다른_필드_조합은_다른_키를_만든다() {
+        String first = generator.generate(null,
+                command("student-1", NotificationType.PAYMENT_CONFIRMED, Channel.EMAIL,
+                        "course:payment", "123"));
+        String second = generator.generate(null,
+                command("student-1", NotificationType.PAYMENT_CONFIRMED, Channel.EMAIL,
+                        "course", "payment:123"));
+
+        assertThat(first).isNotEqualTo(second);
+    }
+
+    @Test
+    void 명시적_키와_자동_생성_키는_namespace가_다르다() {
+        String oldStyleComposite =
+                "PAYMENT_CONFIRMED:ENROLLMENT:enrollment-42:student-1:EMAIL";
+
+        assertThat(generator.generate(oldStyleComposite, sample()))
+                .isNotEqualTo(generator.generate(null, sample()));
+    }
+
+    @Test
+    void 한글과_이모지가_포함된_같은_요청은_같은_키를_만든다() {
+        RegisterNotificationCommand command = command(
+                "학생-😀", NotificationType.COURSE_D1, Channel.IN_APP, "강의", "봄:수업");
+
+        assertThat(generator.generate(null, command))
+                .isEqualTo(generator.generate(null, command));
     }
 }
