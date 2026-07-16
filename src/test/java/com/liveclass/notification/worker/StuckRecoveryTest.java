@@ -74,6 +74,7 @@ class StuckRecoveryTest extends IntegrationTestSupport {
         assertThat(newClaim.attemptNo()).isEqualTo(2);
 
         assertThat(transactionService.recordSuccess(oldClaim)).isFalse();
+        assertThat(transactionService.recordFailure(oldClaim, true, "late failure")).isFalse();
         Notification current = repository.findById(notification.getId()).orElseThrow();
         assertThat(current.getStatus()).isEqualTo(NotificationStatus.PROCESSING);
         assertThat(current.getClaimToken()).isEqualTo(newClaim.claimToken());

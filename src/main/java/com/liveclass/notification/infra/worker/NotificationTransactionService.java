@@ -57,7 +57,7 @@ public class NotificationTransactionService {
     public boolean recordSuccess(ClaimedNotification claim) {
         Instant now = clock.instant();
         int updated = repository.markSentIfCurrent(
-                claim.id(), claim.attemptNo(), claim.claimToken(), now);
+                claim.id(), claim.claimToken(), now);
         if (updated == 0) {
             log.info("stale 성공 결과 폐기 id={} attempt={}", claim.id(), claim.attemptNo());
             return false;
@@ -74,11 +74,11 @@ public class NotificationTransactionService {
         int updated;
         if (retryable && claim.attemptNo() < claim.maxAttempts()) {
             updated = repository.scheduleRetryIfCurrent(
-                    claim.id(), claim.attemptNo(), claim.claimToken(),
+                    claim.id(), claim.claimToken(),
                     now.plus(backoffPolicy.delayFor(claim.attemptNo())), safeError, now);
         } else {
             updated = repository.markFailedIfCurrent(
-                    claim.id(), claim.attemptNo(), claim.claimToken(), safeError, now);
+                    claim.id(), claim.claimToken(), safeError, now);
         }
         if (updated == 0) {
             log.info("stale 실패 결과 폐기 id={} attempt={}", claim.id(), claim.attemptNo());

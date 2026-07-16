@@ -48,10 +48,10 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
                SET n.status = 'SENT', n.sentAt = :now, n.processingStartedAt = null,
                    n.claimToken = null, n.updatedAt = :now
              WHERE n.id = :id AND n.status = 'PROCESSING'
-               AND n.attemptCount = :attemptNo AND n.claimToken = :claimToken
+               AND n.claimToken = :claimToken
             """)
-    int markSentIfCurrent(@Param("id") Long id, @Param("attemptNo") int attemptNo,
-                          @Param("claimToken") String claimToken, @Param("now") Instant now);
+    int markSentIfCurrent(@Param("id") Long id, @Param("claimToken") String claimToken,
+                          @Param("now") Instant now);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
@@ -60,10 +60,9 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
                    n.lastError = :error, n.processingStartedAt = null,
                    n.claimToken = null, n.updatedAt = :now
              WHERE n.id = :id AND n.status = 'PROCESSING'
-               AND n.attemptCount = :attemptNo AND n.claimToken = :claimToken
+               AND n.claimToken = :claimToken
             """)
-    int scheduleRetryIfCurrent(@Param("id") Long id, @Param("attemptNo") int attemptNo,
-                               @Param("claimToken") String claimToken,
+    int scheduleRetryIfCurrent(@Param("id") Long id, @Param("claimToken") String claimToken,
                                @Param("nextAttemptAt") Instant nextAttemptAt,
                                @Param("error") String error, @Param("now") Instant now);
 
@@ -73,9 +72,8 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
                SET n.status = 'FAILED', n.lastError = :error,
                    n.processingStartedAt = null, n.claimToken = null, n.updatedAt = :now
              WHERE n.id = :id AND n.status = 'PROCESSING'
-               AND n.attemptCount = :attemptNo AND n.claimToken = :claimToken
+               AND n.claimToken = :claimToken
             """)
-    int markFailedIfCurrent(@Param("id") Long id, @Param("attemptNo") int attemptNo,
-                            @Param("claimToken") String claimToken,
+    int markFailedIfCurrent(@Param("id") Long id, @Param("claimToken") String claimToken,
                             @Param("error") String error, @Param("now") Instant now);
 }
