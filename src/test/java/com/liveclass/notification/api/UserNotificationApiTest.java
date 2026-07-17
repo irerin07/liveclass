@@ -78,7 +78,26 @@ class UserNotificationApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.content[0].readAt").isEmpty());
     }
 
+    @Test
+    void 사용자_알림_목록에는_SENT만_반환한다() throws Exception {
+        long sent = register("user-1", "sent", Channel.IN_APP);
+        registerPending("user-1", "pending", Channel.IN_APP);
+
+        mockMvc.perform(get("/api/users/user-1/notifications"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(sent))
+                .andExpect(jsonPath("$.totalElements").value(1));
+    }
+
     private long register(String receiverId, String refId, Channel channel) {
+        long id = registerPending(receiverId, refId, channel);
+        jdbcTemplate.update("UPDATE notifications SET status = 'SENT', sent_at = UTC_TIMESTAMP(6) "
+                + "WHERE id = ?", id);
+        return id;
+    }
+
+    private long registerPending(String receiverId, String refId, Channel channel) {
         return notificationService.register(new RegisterNotificationCommand(
                 receiverId,
                 NotificationType.PAYMENT_CONFIRMED,

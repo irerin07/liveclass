@@ -4,6 +4,7 @@ import static com.liveclass.notification.domain.QNotification.notification;
 
 import com.liveclass.notification.domain.Channel;
 import com.liveclass.notification.domain.Notification;
+import com.liveclass.notification.domain.NotificationStatus;
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import jakarta.persistence.EntityManager;
@@ -23,7 +24,8 @@ public class NotificationQueryRepository {
     }
 
     public Page<Notification> findByReceiver(String receiverId, Boolean read, Pageable pageable) {
-        BooleanBuilder conditions = new BooleanBuilder(notification.receiverId.eq(receiverId));
+        BooleanBuilder conditions = new BooleanBuilder(notification.receiverId.eq(receiverId)
+                .and(notification.status.eq(NotificationStatus.SENT)));
         if (read != null) {
             conditions.and(notification.channel.eq(Channel.IN_APP));
             conditions.and(read ? notification.readAt.isNotNull() : notification.readAt.isNull());

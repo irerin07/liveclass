@@ -81,4 +81,25 @@ class StuckRecoveryTest extends IntegrationTestSupport {
         assertThat(attemptRepository.findByNotificationIdOrderByAttemptNo(notification.getId()))
                 .extracting(a -> a.getAttemptNo()).containsExactly(1);
     }
+
+    @Test
+    void 마지막_허용_시도가_스턱이면_FAILED로_종료하고_다시_클레임하지_않는다() {
+        Clock past = Clock.fixed(Instant.now().minusSeconds(10), ZoneOffset.UTC);
+        Notification notification = repository.save(Notification.pending(
+                "stuck-last-attempt", "student-1", NotificationType.PAYMENT_CONFIRMED,
+                Channel.EMAIL, "ENROLLMENT", "stuck-last-attempt", null, 1, past));
+        transactionService.claimBatch();
+        jdbcTemplate.update("UPDATE notifications SET processing_started_at = "
+                + "DATE_SUB(UTC_TIMESTAMP(6), INTERVAL 10 SECOND) WHERE id = ?", notification.getId());
+
+        assertThat(transactionService.recoverStuck()).isEqualTo(1);
+
+        Notification failed = repository.findById(notification.getId()).orElseThrow();
+        assertThat(failed.getStatus()).isEqualTo(NotificationStatus.FAILED);
+        assertThat(failed.getAttemptCount()).isEqualTo(1);
+        assertThat(transactionService.claimBatch()).isEmpty();
+        assertThat(attemptRepository.findByNotificationIdOrderByAttemptNo(notification.getId()))
+                .hasSize(1)
+                .allMatch(attempt -> !attempt.isSuccess());
+    }
 }

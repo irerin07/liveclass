@@ -130,12 +130,19 @@ public class Notification {
         this.updatedAt = now;
     }
 
-    /** PROCESSING → PENDING. 사망한 워커의 클레임을 회수하되 시도 횟수는 유지한다. */
+    /**
+     * 사망한 워커의 클레임을 회수한다. stuck 시도도 이미 소비된 시도로 보며,
+     * 남은 시도가 있으면 PENDING으로 복구하고 최대 횟수에 도달했으면 FAILED로 종료한다.
+     */
     public void recoverStuck(String reason, Clock clock) {
         require(status == NotificationStatus.PROCESSING, "recoverStuck");
         Instant now = clock.instant();
-        this.status = NotificationStatus.PENDING;
-        this.nextAttemptAt = now;
+        this.status = attemptCount < maxAttempts
+                ? NotificationStatus.PENDING
+                : NotificationStatus.FAILED;
+        if (this.status == NotificationStatus.PENDING) {
+            this.nextAttemptAt = now;
+        }
         this.lastError = truncate(reason);
         this.processingStartedAt = null;
         this.claimToken = null;
