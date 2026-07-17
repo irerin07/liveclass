@@ -154,8 +154,8 @@
 
 ### FR-8. 운영 시나리오 대응
 
-- **스턱 복구**: PROCESSING 상태가 기준 시간(기본 5분, 설정화)을 초과하면 회수
-  스케줄러가 PENDING으로 되돌린다. attempt_count는 유지한다.
+- **스턱 복구**: PROCESSING 상태가 기준 시간(기본 5분, 설정화)을 초과하면 회수한다.
+  attempt_count는 유지하며 남은 시도가 있으면 PENDING, 최대 시도에 도달했으면 FAILED로 전환한다.
 - **재시작 내구성**: 서버 재시작 후 PENDING(및 회수된 PROCESSING) 알림이 유실 없이
   재처리된다.
 - **다중 인스턴스**: 여러 워커/인스턴스가 동시에 폴링해도 동일 알림은 정확히 한
@@ -218,7 +218,8 @@
     ├─ 성공 → SENT (커밋)
     └─ 실패 → attempt 기록 + 재시도 스케줄(PENDING) 또는 FAILED (커밋)
 
-[스턱 회수 @Scheduled] ── PROCESSING & processing_started_at < now-5m → PENDING 회수
+[스턱 회수 @Scheduled] ── PROCESSING & processing_started_at < now-5m
+                             → 남은 시도 있음: PENDING / 최대 시도 도달: FAILED
 ```
 
 ### 5.2 트랜잭션 경계 (필수 준수)
@@ -329,10 +330,12 @@ API 레이어 책임으로 한다.
      └──────────────────────────────┤
      ▲                              └── 실패 & attempt = max ──▶ FAILED (최종)
      │                                                            │
-     │        스턱 회수 (PROCESSING 5분 초과, attempt 유지)         │
+     │   스턱 회수 (PROCESSING 5분 초과, 남은 시도가 있을 때)       │
      └────────────────────────────────────────────────────────────┘
                         수동 재시도 (OPT-1)
 ```
+
+마지막 시도에서 스턱으로 판정되면 PENDING으로 되돌리지 않고 FAILED로 종료한다.
 
 | 전이 | 트리거 | 조건 | 부수 효과 |
 | --- | --- | --- | --- |
@@ -498,7 +501,7 @@ RecipientStatusPort.check(receiverId, channel)
 | 1 | POST | `/api/notifications` | 발송 요청 등록 | 202 (신규·중복 공통, 중복은 `duplicated:true`) / 400 / 422(키 오용) |
 | 2 | GET | `/api/notifications/{id}` | 상태 단건 조회 (시도 이력 포함) | 200 / 404 |
 | 3 | GET | `/api/users/{userId}/notifications` | 수신자 목록 (`read`, `page`, `size`) | 200 |
-| 4 | PATCH | `/api/notifications/{id}/read` | 읽음 처리 (IN_APP, 멱등) | 200 / 404 / 400(EMAIL 대상) |
+| 4 | PATCH | `/api/notifications/{id}/read` | 읽음 처리 (SENT IN_APP, 멱등) | 200 / 404 / 400(EMAIL) / 409(미발송) |
 | 5 | POST | `/api/notifications/{id}/retry` | 미구현 선택 기능의 API 제안 (OPT-1) | 200 / 404 / 409(FAILED 아님) |
 
 **POST /api/notifications 요청 예시**
@@ -547,7 +550,7 @@ RecipientStatusPort.check(receiverId, channel)
 | 1 | 프로젝트 세팅, R-1 스모크, Docker Compose, 엔티티/상태 머신 | 빌드 + Q클래스 생성 + 컨테이너 기동 성공 |
 | 2 | FR-1, FR-2, FR-6 (요청 API + 멱등성) | 멱등성 동시성 테스트 통과 |
 | 3 | FR-4, FR-5, FR-7, FR-9 (워커, 재시도, 실패 주입) | 재시도/최종 실패/다중 워커 테스트 통과 |
-| 4 | FR-8 (스턱 회수, 재시작), FR-3, OPT-1~2 | 운영 시나리오 테스트 통과 |
+| 4 | FR-8 (스턱 회수, 재시작), FR-3, OPT-2 | 운영 시나리오 테스트 통과 |
 | 5 | 문서 (README 템플릿 10항목 + 비동기 구조/재시도 정책 + 별도 요구사항 해석/개선 의견 문서), 최종 실행 검증 | clone → `docker compose up` → 데모 절차 재현 성공 |
 
 ---

@@ -16,7 +16,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * 멱등성 동작 통합 테스트 (tasks T2.6~). 실제 MySQL 위에서 수행한다.
+ * 멱등성 동작 통합 테스트. 실제 MySQL 위에서 수행한다.
  */
 @AutoConfigureMockMvc
 class IdempotencyApiTest extends IntegrationTestSupport {

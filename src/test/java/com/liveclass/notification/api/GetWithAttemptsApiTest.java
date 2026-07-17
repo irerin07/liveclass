@@ -22,7 +22,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * 상태 조회 응답의 시도 이력 검증 (tasks T4.9, FR-2 완성).
+ * 상태 조회 응답의 시도 이력을 검증한다 (FR-2).
  */
 @AutoConfigureMockMvc
 @TestPropertySource(properties = "notification.retry.backoff=50ms")

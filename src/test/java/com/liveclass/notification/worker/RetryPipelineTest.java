@@ -21,7 +21,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.TestPropertySource;
 
 /**
- * 재시도·최종 실패 파이프라인 검증 (tasks T4.11~T4.13). 실패 주입 수신자로 재시도 흐름을
+ * 재시도·최종 실패 파이프라인을 검증한다. 실패 주입 수신자로 재시도 흐름을
  * 재현하고, 짧은 백오프로 여러 폴링에 걸쳐 결과에 도달함을 확인한다.
  */
 @TestPropertySource(properties = "notification.retry.backoff=50ms")

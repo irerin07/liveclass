@@ -19,7 +19,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 /**
- * 알림 등록/조회 API 통합 테스트 (tasks T1.10). 실제 MySQL 위에서 수행한다.
+ * 알림 등록/조회 API 통합 테스트. 실제 MySQL 위에서 수행한다.
  */
 @AutoConfigureMockMvc
 class NotificationApiTest extends IntegrationTestSupport {

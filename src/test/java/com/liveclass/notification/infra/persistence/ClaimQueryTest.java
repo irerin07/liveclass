@@ -20,7 +20,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 클레임 쿼리 검증 (tasks T3.4). 선택 조건과 {@code FOR UPDATE SKIP LOCKED} 동작을
+ * 클레임 쿼리의 선택 조건과 {@code FOR UPDATE SKIP LOCKED} 동작을
  * 실제 MySQL에서 확인한다 (spec NFR-6).
  */
 class ClaimQueryTest extends IntegrationTestSupport {

@@ -58,7 +58,8 @@ DB의 `UNIQUE(idempotency_key)`가 최종 중복 방어선이다. 별도 deadloc
 1. 짧은 트랜잭션에서 `FOR UPDATE SKIP LOCKED`로 알림을 claim한다.
 2. 트랜잭션 밖에서 발송한다.
 3. 별도 트랜잭션에서 claim token을 검사해 결과와 attempt를 함께 기록한다.
-4. stuck recovery는 token을 지우고 실패 attempt를 기록한 뒤 PENDING으로 복귀시킨다.
+4. stuck recovery는 token을 지우고 실패 attempt를 기록한다. 남은 시도가 있으면
+   PENDING으로 복귀시키고, 최대 시도에 도달했으면 FAILED로 종료한다.
 
 worker executor는 대기 큐를 사용하지 않고 빈 실행 슬롯만큼만 claim한다. 따라서 실행 전
 대기 작업이 PROCESSING으로 표시되어 stuck으로 오인되지 않는다.

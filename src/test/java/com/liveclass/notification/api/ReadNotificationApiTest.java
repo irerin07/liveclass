@@ -66,6 +66,17 @@ class ReadNotificationApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 아직_발송되지_않은_IN_APP_알림은_409를_반환한다() throws Exception {
+        long id = registerPending(Channel.IN_APP);
+
+        mockMvc.perform(patch("/api/notifications/{id}/read", id))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("NOTIFICATION_NOT_DELIVERED"));
+
+        assertThat(notificationRepository.findById(id).orElseThrow().getReadAt()).isNull();
+    }
+
+    @Test
     void 동시_읽음_요청은_모두_성공하고_readAt을_기록한다() throws Exception {
         long id = register(Channel.IN_APP);
         int requestCount = 10;
@@ -97,6 +108,13 @@ class ReadNotificationApiTest extends IntegrationTestSupport {
     }
 
     private long register(Channel channel) {
+        long id = registerPending(channel);
+        jdbcTemplate.update("UPDATE notifications SET status = 'SENT', sent_at = UTC_TIMESTAMP(6) "
+                + "WHERE id = ?", id);
+        return id;
+    }
+
+    private long registerPending(Channel channel) {
         return notificationService.register(new RegisterNotificationCommand(
                 "user-1",
                 NotificationType.PAYMENT_CONFIRMED,

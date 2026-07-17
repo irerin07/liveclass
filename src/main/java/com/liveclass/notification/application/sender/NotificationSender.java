@@ -9,7 +9,7 @@ import com.liveclass.notification.domain.Notification;
  *
  * <p>발송은 DB 트랜잭션 밖에서 호출된다 (spec §5.2). 일시적 실패는
  * {@code TransientSendException}, 영구적 실패는 {@code PermanentSendException}으로
- * 구분한다 (Phase 4에서 도입).
+ * 구분한다.
  */
 public interface NotificationSender {
 
