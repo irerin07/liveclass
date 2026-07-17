@@ -100,7 +100,8 @@ public class NotificationTransactionService {
             notification.recoverStuck(STUCK_REASON, clock);
             attemptRepository.save(NotificationAttempt.failure(
                     notification.getId(), attemptNo, startedAt, now, STUCK_REASON));
-            log.warn("스턱 알림 회수 id={} attempt={}", notification.getId(), attemptNo);
+            log.warn("스턱 알림 처리 id={} attempt={} status={}",
+                    notification.getId(), attemptNo, notification.getStatus());
         }
         return stuck.size();
     }
