@@ -4,10 +4,12 @@ import com.liveclass.notification.application.command.RegisterNotificationComman
 import com.liveclass.notification.application.exception.ChannelNotSupportedException;
 import com.liveclass.notification.application.exception.IdempotencyKeyMisuseException;
 import com.liveclass.notification.application.exception.NotificationNotFoundException;
+import com.liveclass.notification.application.exception.NotificationNotDeliveredException;
 import com.liveclass.notification.application.result.NotificationDetail;
 import com.liveclass.notification.application.result.RegistrationResult;
 import com.liveclass.notification.domain.Channel;
 import com.liveclass.notification.domain.Notification;
+import com.liveclass.notification.domain.NotificationStatus;
 import com.liveclass.notification.infra.persistence.NotificationAttemptRepository;
 import com.liveclass.notification.infra.persistence.NotificationQueryRepository;
 import com.liveclass.notification.infra.persistence.NotificationRepository;
@@ -36,7 +38,7 @@ public class NotificationService {
     private final Clock clock;
 
     /**
-     * 알림 발송 요청 접수. 저장만 하고 즉시 반환한다 — 발송은 워커(Phase 3)의 몫이다.
+     * 알림 발송 요청 접수. 저장만 하고 즉시 반환한다 — 발송은 워커의 몫이다.
      *
      * <p>멱등성 2중 방어 (spec §5.3, decisions.md D-1). 이 메서드는 <b>트랜잭션이 없다</b> —
      * 제약 위반 예외를 트랜잭션 경계 밖에서 잡아야 INSERT 트랜잭션의 롤백이 재조회를
@@ -126,6 +128,9 @@ public class NotificationService {
                 .orElseThrow(() -> new NotificationNotFoundException(id));
         if (notification.getChannel() != Channel.IN_APP) {
             throw new ChannelNotSupportedException();
+        }
+        if (notification.getStatus() != NotificationStatus.SENT) {
+            throw new NotificationNotDeliveredException(id, notification.getStatus());
         }
         repository.markReadIfUnread(id, clock.instant());
     }

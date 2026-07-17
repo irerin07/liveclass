@@ -9,7 +9,7 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * 잘못된 설정이 기동 시 거부되는지 검증 (tasks H3).
+ * 잘못된 설정이 기동 시 거부되는지 검증한다.
  */
 class NotificationPropertiesValidationTest {
 

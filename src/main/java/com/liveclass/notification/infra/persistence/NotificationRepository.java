@@ -17,7 +17,8 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     @Query("""
             UPDATE Notification n
                SET n.readAt = :now, n.updatedAt = :now
-             WHERE n.id = :id AND n.readAt IS NULL
+             WHERE n.id = :id AND n.channel = 'IN_APP' AND n.status = 'SENT'
+               AND n.readAt IS NULL
             """)
     int markReadIfUnread(@Param("id") Long id, @Param("now") Instant now);
 

@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
- * 멱등성 동시성 검증 (tasks T2.7). 동일 키 다수 스레드 동시 등록 = 더블클릭·이중제출·
+ * 멱등성 동시성 검증. 동일 키 다수 스레드 동시 등록 = 더블클릭·이중제출·
  * 동시 재시도 시나리오. UNIQUE 제약 + 새 트랜잭션 재조회(2차 방어)가 정확히 1건만
  * 생성함을 실제 MySQL에서 검증한다 (spec NFR-6).
  */

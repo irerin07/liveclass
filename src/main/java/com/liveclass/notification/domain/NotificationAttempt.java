@@ -13,7 +13,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * 발송 시도 이력. 알림 1건은 여러 시도를 가질 수 있으며,
- * 실패 사유 추적의 원천이다 (spec FR-5). 기록 로직은 Phase 4에서 연결된다.
+ * 실패 사유 추적의 원천이다 (spec FR-5).
  */
 @Entity
 @Table(name = "notification_attempts")

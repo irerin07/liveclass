@@ -21,7 +21,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 /**
- * 예상 밖 예외가 알림을 PROCESSING에 고착시키지 않음을 검증 (tasks H1). 수신자 조회에서
+ * 예상 밖 예외가 알림을 PROCESSING에 고착시키지 않음을 검증한다. 수신자 조회에서
  * 알 수 없는 RuntimeException이 계속 발생해도 태스크 종료가 아니라 retryable 실패로
  * 기록되어, 재시도 소진 후 FAILED에 도달해야 한다.
  */

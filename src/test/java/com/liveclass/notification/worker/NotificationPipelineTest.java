@@ -20,7 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.TestPropertySource;
 
 /**
- * 비동기 발송 파이프라인 통합 테스트 (tasks T3.11~T3.14). 등록 → 폴링 → 워커 → SENT의
+ * 비동기 발송 파이프라인 통합 테스트. 등록 → 폴링 → 워커 → SENT의
  * 전체 흐름을 실제 MySQL에서 검증한다. 스케줄러 대신 {@code processBatch()}를 직접 호출해
  * 결정적으로 테스트하고, 워커의 비동기 완료는 Awaitility로 기다린다.
  *

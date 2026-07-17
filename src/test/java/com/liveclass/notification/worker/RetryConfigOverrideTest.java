@@ -18,7 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.TestPropertySource;
 
 /**
- * 재시도 설정 변경이 동작에 반영되는지 검증 (tasks T4.16). max-attempts를 2로 낮추면
+ * 재시도 설정 변경이 동작에 반영되는지 검증한다. max-attempts를 2로 낮추면
  * 기본(3)보다 한 번 적게 시도하고 FAILED에 도달해야 한다.
  */
 @TestPropertySource(properties = {

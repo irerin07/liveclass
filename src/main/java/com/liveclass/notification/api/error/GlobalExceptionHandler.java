@@ -3,6 +3,7 @@ package com.liveclass.notification.api.error;
 import com.liveclass.notification.application.exception.ChannelNotSupportedException;
 import com.liveclass.notification.application.exception.IdempotencyKeyMisuseException;
 import com.liveclass.notification.application.exception.NotificationNotFoundException;
+import com.liveclass.notification.application.exception.NotificationNotDeliveredException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -29,6 +30,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleChannelNotSupported(ChannelNotSupportedException e) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ErrorResponse("CHANNEL_NOT_SUPPORTED", e.getMessage()));
+    }
+
+    @ExceptionHandler(NotificationNotDeliveredException.class)
+    public ResponseEntity<ErrorResponse> handleNotDelivered(NotificationNotDeliveredException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ErrorResponse("NOTIFICATION_NOT_DELIVERED", e.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
