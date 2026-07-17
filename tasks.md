@@ -169,7 +169,7 @@
 - [x] T5.6 재시작 내구성 테스트: PENDING/스턱 PROCESSING 데이터를 DB에 심고 동일 DB를 보는 새 ApplicationContext 기동 → 회수 후 전량 SENT
 - [x] T5.7 다중 인스턴스 상당 테스트: PENDING 100건 + 클레임 주체 4개 동시 실행 → 전량 SENT, attempt 100건, 중복 0·누락 0. 큐 클레임/회수 TX는 `READ_COMMITTED`로 설정해 MySQL REPEATABLE_READ의 범위 잠금 deadlock 완화
 - [x] T5.7a 워커 4개를 latch로 점유 → 첫 poll 4건만 PROCESSING, 추가 poll 0건, 나머지는 PENDING 유지. 워커가 막힌 동안에도 POST 202 확인(NFR-1)
-- [x] T5.8 당시 전체 테스트 통과(81건). Phase 5.5 정리와 멱등 키 경계 테스트 반영 후 현재 74건
+- [x] T5.8 Phase 5 당시 전체 테스트 통과. Phase 5.5 구조 정리와 Phase 6 반영 후 최종 81건 통과
 
 ---
 
@@ -207,11 +207,11 @@
 
 ## Phase 7 — 선택 구현 (시간 허용 시에만, OPT-1 → OPT-3 순)
 
-> 중단 규칙: Phase 8에 최소 하루를 남기고 중단. 미구현 항목은 README에 정책 서술로 대체 (spec §7.5 등).
+> 중단 규칙: Phase 8에 최소 하루를 남기고 중단. 미구현 항목은 `requirements-and-improvements.md`의 정책 서술로 대체 (spec §7.5 등).
 
 ### OPT-1. 수동 재시도
 
-- [ ] T7.1 `POST /api/notifications/{id}/retry`: FAILED만 허용(아니면 409), attempt_count 초기화 + 기존 이력 보존, PENDING 복귀 (spec §7.5)
+- [ ] T7.1 `POST /api/notifications/{id}/retry`: FAILED만 허용(아니면 409), 기존 이력을 보존하는 새 retry cycle 생성 + PENDING 복귀 (spec §7.5)
 - [ ] T7.2 통합 테스트: FAILED → 수동 재시도 → SENT, 이력 보존, 비FAILED 대상 409
 - [ ] T7.3 **커밋** (`feat: 최종 실패 알림 수동 재시도`)
 
@@ -225,14 +225,14 @@
 
 ## Phase 8 — 문서화 + 최종 검증
 
-### README (과제 공통 템플릿 9항목)
+### README (과제 공통 템플릿 10항목)
 
 - [x] T8.1 프로젝트 개요 / 기술 스택
 - [x] T8.2 실행 방법 (docker compose 단일 명령 + 로컬 실행 대안)
 - [x] T8.3 API 목록 및 예시 (엔드포인트별 curl + 응답 샘플)
 - [x] T8.4 데이터 모델 설명 (ERD — mermaid, 인덱스 설계 이유 포함)
-- [x] T8.5 요구사항 해석 및 가정 (spec §7 이관: 동일 이벤트 정의, 채널별 차이, 실패 분류, at-least-once, 수동 재시도 정책, 보관 정책, 수신 가능 여부 확인 책임 §7.7)
-- [x] T8.6 설계 결정과 이유 (**decisions.md 이관** — D-1 중복 요청 처리 연쇄 포함, 아웃박스 선택, RETRY_WAIT 미도입, 트랜잭션 3단 분리, tasks.md [결정 기록] 반영)
+- [x] T8.5 요구사항 해석 및 가정: README에서 별도 `requirements-and-improvements.md`를 안내하고, 상세 정책(동일 이벤트, 채널, 실패 분류, at-least-once, 수동 재시도, 보관, 수신 가능 책임)은 별도 문서에 정리
+- [x] T8.6 설계 결정과 이유 (**decisions.md 이관** — D-1 중복 요청 처리 연쇄 포함, DB 기반 durable work queue 선택, RETRY_WAIT 미도입, 트랜잭션 3단 분리, tasks.md [결정 기록] 반영)
 - [x] T8.7 테스트 실행 방법 (Testcontainers 요구사항 — Docker 필요 명시)
 - [x] T8.8 미구현 / 제약사항 (Phase 7 미착수분의 정책 서술 포함)
 - [x] T8.9 AI 활용 범위 (사용 도구·범위·직접 검증/수정 내용 구체적으로)
@@ -240,7 +240,7 @@
 ### C 전용 추가 제출물
 
 - [x] T8.10 비동기 처리 구조 및 재시도 정책 문서: 아키텍처 다이어그램(mermaid), 상태 머신 전이 표, 트랜잭션 경계, 백오프 정책, 브로커 전환 시나리오 (spec §5.4 표)
-- [x] T8.11 요구사항 해석 및 개선 의견: at-least-once 한계와 개선 방향(수신측 멱등성, dedupe), 탈퇴 이벤트 연동에 의한 선제 취소(CANCELED 상태 도입)·탈퇴자 알림 데이터 파기 정책(§7.6·§7.7), 수신 가능 정책의 알림 타입 차원(거래성 vs 마케팅성 — 탈퇴자에게도 가야 하는 알림), 요구사항 자체에 대한 제안
+- [x] T8.11 `requirements-and-improvements.md`: at-least-once 한계와 개선 방향(수신측 멱등성, dedupe), 탈퇴 이벤트 연동에 의한 선제 취소(CANCELED 상태 도입)·탈퇴자 알림 데이터 파기 정책(§7.6·§7.7), 수신 가능 정책의 알림 타입 차원(거래성 vs 마케팅성), 요구사항 자체에 대한 제안
 
 ### 데모 + 최종 검증
 

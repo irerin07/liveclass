@@ -36,9 +36,9 @@
 
 1. Spring Boot 4.x 프로젝트 생성 (Gradle, Java 21)
 2. 의존성 구성
-   - `spring-boot-starter-web`, `spring-boot-starter-data-jpa`, `spring-boot-starter-validation`
+   - `spring-boot-starter-webmvc`, `spring-boot-starter-jackson`, `spring-boot-starter-data-jpa`, `spring-boot-starter-validation`, `spring-boot-starter-actuator`
    - Querydsl: 본가 `com.querydsl:querydsl-jpa:5.1.0:jakarta` 우선 시도
-   - 테스트: `spring-boot-starter-test`, `testcontainers` (mysql, junit-jupiter), `awaitility`
+   - 테스트: `spring-boot-starter-test`, Boot 4 테스트 모듈, `testcontainers-mysql`, `testcontainers-junit-jupiter`, `awaitility`
 3. **Querydsl 스모크 테스트**: 더미 엔티티 1개 → Q클래스 생성 → `JPAQueryFactory`로 조회 1건 실행까지 통과 확인
    - 실패 시 폴백 1: OpenFeign 포크 `io.github.openfeign.querydsl:querydsl-jpa` 로 교체
    - 실패 시 폴백 2: Querydsl 제거, 해당 쿼리 JPQL로 구현 (결정을 README에 기록)
@@ -51,7 +51,7 @@
 - **Querydsl APT (Gradle)**: `annotationProcessor("com.querydsl:querydsl-apt:5.1.0:jakarta")` + `jakarta.persistence:jakarta.persistence-api`를 annotationProcessor 경로에 추가. Boot 4는 Hibernate 7 기반이므로 Q클래스 생성은 되어도 런타임(`JPAQueryFactory`)에서 깨질 수 있음 → 스모크 테스트는 반드시 **쿼리 실행까지** 포함
 - **패키지 구조** (포트/어댑터 분리를 처음부터 — spec §5.4):
   ```
-  com.example.notification
+  com.liveclass.notification
   ├─ api            // Controller, request/response DTO, 예외 핸들러
   ├─ application    // 서비스, 포트 인터페이스 (NotificationSender 등)
   ├─ domain         // 엔티티, 상태 enum, 상태 전이 로직
@@ -79,7 +79,7 @@
 ### 작업
 
 1. 엔티티: `Notification` (spec §5.5의 전체 컬럼 중 이 시점에 필요한 것 + 이후 phase 컬럼도 **미리 전부 정의** — attempt_count, next_attempt_at 등. 스키마 변경 재작업 방지)
-2. 상태 enum: `PENDING / PROCESSING / SENT / FAILED` + **상태 전이 메서드를 엔티티에 구현** (`claim()`, `markSent()`, `scheduleRetry()`, `markFailed()` — 허용되지 않은 전이는 예외). 전이 로직이 서비스에 흩어지지 않게 함 (FR-4의 기반)
+2. 상태 enum: `PENDING / PROCESSING / SENT / FAILED`. 초기 구현에서는 상태 전이를 엔티티 메서드로 두고, 최종 구조에서는 claim·stuck recovery는 엔티티 메서드, 발송 결과는 claim token 조건부 bulk UPDATE로 처리한다.
 3. `POST /api/notifications`: 검증(@Valid, enum 바인딩 에러 → 400) 후 PENDING 저장, 202 응답. **멱등성은 아직 없음**
 4. `GET /api/notifications/{id}`: 상태 단건 조회, 404 처리
 5. `notification_attempts` 엔티티도 이 시점에 정의 (기록 로직은 Phase 4)
@@ -93,7 +93,7 @@
 
 ### 완료 기준
 
-- [ ] 상태 전이 단위 테스트: 허용 전이 성공 / 비허용 전이(SENT→PENDING 등) 예외
+- [ ] 상태 전이 단위 테스트: claim·stuck recovery의 허용 전이와 비허용 상태 예외
 - [ ] POST → 202 + PENDING 저장, GET → 200 / 404 통합 테스트
 - [ ] 검증 실패 → 400 + 통일된 에러 형식
 
@@ -105,7 +105,7 @@
 
 ### 작업
 
-1. 멱등성 키 생성 규칙 구현: `type:refType:refId:receiverId:channel` (spec §5.3). `Idempotency-Key` 헤더 오버라이드 지원
+1. 멱등성 키 생성 규칙 구현: `(type, refType, refId, receiverId, channel)` 각 필드를 `길이:값`으로 인코딩해 연결 (spec §5.3). `Idempotency-Key` 헤더 오버라이드 지원
 2. `idempotency_key` UNIQUE 제약 활성화
 3. 등록 흐름을 2중 방어로 변경:
    - 사전 조회 → 존재 시 `202 + 기존 ID + duplicated: true`
@@ -138,7 +138,7 @@
 2. 폴러: `@Scheduled(fixedDelayString = "${notification.polling-interval}")` — PENDING & `next_attempt_at <= now` 배치 클레임
 3. 클레임 쿼리: `SELECT ... FOR UPDATE SKIP LOCKED` + `LIMIT :batchSize` → PROCESSING 전환 + `processing_started_at` 기록 → 커밋 (TX1)
 4. 워커 스레드풀: 클레임된 건을 풀에 위임, **트랜잭션 밖에서** 발송 → 결과 기록 트랜잭션(TX2)에서 SENT 전환
-5. 스레드풀/스케줄러 분리 설정 (NFR-4)
+5. `@Scheduled` 진입점과 외부 발송 실행 분리: scheduler는 짧은 claim/recovery만 수행하고 실제 발송은 전용 worker executor에 위임 (NFR-4)
 
 ### 기술 메모
 
@@ -146,10 +146,11 @@
   - JPA: `@Lock(PESSIMISTIC_WRITE)` + `@QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "-2"))` — Hibernate가 `-2`를 SKIP LOCKED로 해석. Hibernate 7에서의 동작을 스모크로 확인
   - 네이티브 쿼리: `... FOR UPDATE SKIP LOCKED` 명시 — 확실하지만 엔티티 매핑 수동. **불확실하면 네이티브 권장**
 - **트랜잭션 경계 (spec §5.2)**: 폴러 메서드에 `@Transactional`을 통으로 걸지 않는다.
-  - `Claimer.claimBatch()` — `@Transactional`, 클레임만 하고 커밋, ID 목록 반환
-  - `Worker.process(id)` — 트랜잭션 없이 발송 → `ResultRecorder.record(id, result)` — `@Transactional`
-  - self-invocation 프록시 문제를 피하려고 세 역할을 **별도 빈**으로 분리
-- 스레드풀: `ThreadPoolTaskExecutor` (워커용) + `ThreadPoolTaskScheduler` size 2 이상 (폴러/회수 분리, Phase 5 대비)
+  - `NotificationTransactionService.claimBatch()` — `@Transactional`, 클레임 후 `List<ClaimedNotification>` 반환
+  - `NotificationWorkerService.process(claim)` — 트랜잭션 없이 발송
+  - `NotificationTransactionService.record*(claim, result)` — claim token 조건부 결과 기록 트랜잭션
+  - self-invocation 프록시 문제를 피하려고 orchestration과 트랜잭션 책임을 **별도 빈**으로 분리
+- 스레드풀: 외부 발송 전용 `ThreadPoolTaskExecutor`. `@Scheduled` 메서드는 짧은 claim/recovery만 수행하고 발송은 executor에 위임
 - 테스트에서 폴링 주기 단축: 테스트 프로파일 `notification.polling-interval: 100ms` + Awaitility `await().atMost(5, SECONDS)`
 
 ### 완료 기준
@@ -163,7 +164,7 @@
 
 ## Phase 4 — 실패 처리와 재시도
 
-**목표**: FR-5, FR-9 완성. 발송이 실패할 수 있게 만들고(실패 주입), 지수 백오프 재시도와 최종 실패 처리를 완성한다.
+**목표**: FR-5, FR-9 완성. 발송이 실패할 수 있게 만들고(실패 주입), 설정 기반 단계형 backoff 재시도와 최종 실패 처리를 완성한다.
 
 ### 작업
 
@@ -210,7 +211,7 @@
 ### 기술 메모
 
 - 스턱 회수도 클레임과 동일하게 SKIP LOCKED 업데이트로 — 회수 스케줄러 자체도 다중 인스턴스에서 돌 수 있으므로 이중 회수 방지
-- **회수 ↔ 정상 완료 경쟁**: 회수 시점에 워커가 살아서 TX2를 커밋하려는 경우 → TX2의 상태 전이를 조건부 UPDATE(`WHERE status = 'PROCESSING'`)로 구현해 늦게 도착한 결과가 회수-재처리된 알림을 덮어쓰지 않게 함. at-least-once 잔여 위험은 spec §7.4대로 문서화
+- **회수 ↔ 정상 완료 경쟁**: 회수 시점에 워커가 살아서 TX2를 커밋하려는 경우 → TX2를 `(id, status = PROCESSING, claim_token)` 조건부 UPDATE로 구현해 늦게 도착한 이전 세대 결과가 회수·재처리된 알림을 덮어쓰지 않게 함. at-least-once 잔여 위험은 spec §7.4대로 문서화
 - 다중 인스턴스 테스트 방법: 같은 DB를 바라보는 폴러 빈을 테스트에서 수동으로 2개 이상 생성하거나, 클레임 컴포넌트를 N개 스레드에서 직접 호출 → PENDING 100건 투입 → 발송 기록 수집 → 중복/누락 0 검증 (Mock sender가 처리 ID를 `ConcurrentHashMap`에 수집)
 - 재시작 테스트: PENDING/PROCESSING(오래된) 데이터를 DB에 직접 심고 `ApplicationContext` 기동 → 전부 SENT 도달 검증
 - 스턱 임계 테스트: 주입된 `Clock`을 미래로 이동시키거나 `processing_started_at`을 과거로 직접 UPDATE (후자가 단순 — 권장)
@@ -253,8 +254,8 @@
 
 ### OPT-1. 최종 실패 수동 재시도
 
-- `POST /api/notifications/{id}/retry`: FAILED만 허용 (아니면 409), attempt_count 초기화(spec §7.5 — 이력은 보존), PENDING 복귀
-- 초기화 정책의 근거를 README에 기술 (질문형 선택 요구사항에 대한 답)
+- `POST /api/notifications/{id}/retry`: FAILED만 허용 (아니면 409), 기존 이력을 보존하는 새 retry cycle 생성 후 PENDING 복귀
+- `UNIQUE(notification_id, attempt_no)`와 충돌하지 않도록 `retry_cycle` 또는 전체 증가 attempt 번호 정책을 먼저 도입하고, 근거를 별도 요구사항 해석 문서에 기술
 
 ### OPT-3. 발송 예약
 
@@ -274,17 +275,17 @@
 
 ### 작업
 
-1. README.md 작성 — 과제 공통 템플릿 9항목:
-   - 프로젝트 개요 / 기술 스택 / 실행 방법 (docker compose) / API 목록 및 예시 (curl 포함) / 데이터 모델 설명 (ERD) / 요구사항 해석 및 가정 (spec §7 이관) / 설계 결정과 이유 / 테스트 실행 방법 / 미구현·제약사항 / AI 활용 범위
+1. README.md 작성 — 과제 공통 템플릿 10항목:
+   - 프로젝트 개요 / 기술 스택 / 실행 방법 (docker compose) / API 목록 및 예시 (curl 포함) / 데이터 모델 설명 (ERD) / 요구사항 해석 및 가정 / 설계 결정과 이유 / 테스트 실행 방법 / 미구현·제약사항 / AI 활용 범위
 2. **[C 전용] 비동기 처리 구조 및 재시도 정책 문서**: 아키텍처 다이어그램(mermaid), 상태 머신 표, 트랜잭션 경계, 백오프 정책, 브로커 전환 시나리오 (spec §5.4 표 이관)
-3. **[C 전용] 요구사항 해석 및 개선 의견**: at-least-once 한계와 개선 방향(수신측 멱등성 등), 요구사항 자체에 대한 제안
+3. **[C 전용] 요구사항 해석 및 개선 의견**: `requirements-and-improvements.md` 별도 문서에 at-least-once 한계와 개선 방향(수신측 멱등성 등), 요구사항 자체에 대한 제안
 4. 실패 → 재시도 → 성공 데모 절차 작성 (실패 주입 수신자 패턴 이용, curl 시퀀스)
 5. 최종 검증: 새 clone → `docker compose up` → 데모 절차 재현 → 전체 테스트 실행
 6. AI 활용 범위 기재
 
 ### 완료 기준
 
-- [ ] README 템플릿 9항목 + C 전용 문서 2건 완비
+- [ ] README 템플릿 10항목 + C 전용 제출물 2건 완비
 - [ ] clone부터 데모까지 문서만 보고 재현 가능 (직접 수행 검증)
 - [ ] `./gradlew test` 전체 통과, main 브랜치 실행 가능 상태
 
@@ -304,7 +305,7 @@
 
 | 구분 | 선택 | 사용 지점 |
 | --- | --- | --- |
-| Java 21 | record(DTO), switch 패턴 매칭(상태 전이 분기) 활용 | 전반 |
+| Java 21 | record 기반 API·application 데이터 모델, 최신 LTS 런타임 활용 | 전반 |
 | Spring Boot 4.x | Web, Data JPA, Validation, Scheduling | 전반 |
 | MySQL 8 | `FOR UPDATE SKIP LOCKED`, UNIQUE 제약, DATETIME(6) | Phase 2, 3, 5 |
 | JPA/Hibernate | 엔티티 + 상태 전이 메서드, 조건부 벌크 UPDATE | Phase 1, 5, 6 |
